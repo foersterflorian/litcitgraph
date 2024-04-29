@@ -6,7 +6,6 @@ from typing import (
 )
 import typing
 import logging
-from uuid import uuid4
 import functools
 
 from pybliometrics.scopus import AbstractRetrieval
@@ -18,21 +17,12 @@ from .parsing import (
     authors_to_str,
 )
 
-# ** typing
 T = TypeVar('T')
 P = ParamSpec('P')
 
-# **logging
 logger = logging.getLogger('scopus_citpgraph.requests')
 LOGGING_LEVEL = 'INFO'
 logger.setLevel(LOGGING_LEVEL)
-
-"""
-except Scopus404Error:
-        logger.warning(f"Scopus404Error: {identifier=} not found.")
-        return False, None
-"""
-
 
 def retry_scopus(
     num_retries: int = 3
@@ -83,8 +73,6 @@ def get_from_scopus(
         authors = ''
     else:
         authors = authors_to_str(authors)
-    
-    #internal_id = uuid4()
     
     paper_info = PaperInfo(
         title=title,

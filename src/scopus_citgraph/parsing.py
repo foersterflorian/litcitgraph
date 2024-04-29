@@ -10,7 +10,6 @@ from typing import (
 import logging
 from pathlib import Path
 from dataclasses import dataclass
-from uuid import UUID
 
 import pandas as pd
 from pandas import Series
@@ -28,7 +27,7 @@ LOGGING_LEVEL = 'INFO'
 logger.setLevel(LOGGING_LEVEL)
 
 @dataclass(frozen=True, kw_only=True, slots=True)
-class PaperInfo():
+class PaperInfo:
     title: str
     authors: str
     year: int
@@ -36,13 +35,12 @@ class PaperInfo():
     doi: str | None
     eid: str
     scopus_url: str
-    """
+    
     def __key(self) -> tuple[ScopusID, EID]:
         return (self.scopus_id, self.eid)
     
     def __hash__(self) -> int:
-        hash(self.__key())
-    """
+        return hash(self.__key())
 
 @overload
 def read_id_list_from_scopus(

@@ -1,66 +1,47 @@
-import typing
 from typing import (
     cast,
     overload,
     Literal,
-    TypeAlias,
-    NamedTuple,
-    NewType,
 )
+from collections.abc import Iterable
 import logging
 from pathlib import Path
-from dataclasses import dataclass
 
 import pandas as pd
 from pandas import Series
 
-
-# ** types
-#ScopusExportIdentifier: TypeAlias = str | int
-ScopusID = NewType('ScopusID', int)
-DOI: TypeAlias = str
-EID: TypeAlias = str
+from .types import (
+    DOI,
+    EID,
+    ScopusExportIdentifier,
+    PybliometricsAuthor,
+)
 
 # **logging
 logger = logging.getLogger('scopus_citpgraph.parsing')
 LOGGING_LEVEL = 'INFO'
 logger.setLevel(LOGGING_LEVEL)
 
-@dataclass(frozen=True, kw_only=True, slots=True)
-class PaperInfo:
-    title: str
-    authors: str
-    year: int
-    scopus_id: ScopusID
-    doi: str | None
-    eid: str
-    scopus_url: str
-    
-    def __key(self) -> tuple[ScopusID, EID]:
-        return (self.scopus_id, self.eid)
-    
-    def __hash__(self) -> int:
-        return hash(self.__key())
 
 @overload
 def read_id_list_from_scopus(
     path_to_csv: str | Path,
     use_doi: Literal[True],
-) -> tuple[DOI, ...]:
+) -> tuple[tuple[DOI, ...], Literal[True]]:
     ...
 
 @overload
 def read_id_list_from_scopus(
     path_to_csv: str | Path,
     use_doi: Literal[False] = ...,
-) -> tuple[EID, ...]:
+) -> tuple[tuple[EID, ...], Literal[False]]:
     ...
 
 @overload
 def read_id_list_from_scopus(
     path_to_csv: str | Path,
     use_doi: bool = ...,
-) -> tuple[DOI | EID, ...]:
+) -> tuple[tuple[DOI | EID, ...], bool]:
     ...
 
 def read_id_list_from_scopus(
@@ -83,21 +64,21 @@ def read_id_list_from_scopus(
     nan_entries = total_num_entries - cleaned_num_entries
     logger.info(
         f"Entries in dataset: {total_num_entries}, "
-        f"Entries after cleaning: {cleaned_num_entries}, "
+        f"Entries after cleansing: {cleaned_num_entries}, "
         f"empty: {nan_entries}"
     )
     
-    return ids
+    return ids, use_doi
 
 def authors_to_str(
-    authors: list[NamedTuple],
+    authors: Iterable[PybliometricsAuthor],
 ) -> str:
     """Generate author string based on author namedtuple from
     Pybliometrics
 
     Parameters
     ----------
-    authors : list[NamedTuple]
+    authors : list[Author]
         list of authors with properties  (AUID, indexed_name, 
         surname, given_name, affiliation)
 

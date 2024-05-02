@@ -1,0 +1,28 @@
+[project]
+name = "litcitgraph"
+version = "0.1.0"
+description = "automatically build citation graphs for a given batch of literature extracted from scientific databases"
+authors = [
+    {name = "Florian Förster", email = "florian.foerster@mb.tu-chemnitz.de"},
+]
+dependencies = [
+    "pybliometrics~=3.6",
+]
+requires-python = ">=3.11"
+readme = "README.md"
+license = {text = "MIT"}
+
+[build-system]
+requires = ["pdm-backend"]
+build-backend = "pdm.backend"
+
+
+[tool.pdm]
+distribution = true
+
+[tool.pdm.options]
+add = ["--save-compatible"]
+[tool.pdm.dev-dependencies]
+exampletests = [
+    "jupyterlab~=4.1",
+]

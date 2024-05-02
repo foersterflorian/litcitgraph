@@ -15,6 +15,10 @@ results/
 # temp files
 file_system_backend/
 
+# PDM files
+*.pdm-python
+.pdm-build/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

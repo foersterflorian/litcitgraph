@@ -1,2 +1,3 @@
-example/** linguist-documentation
-examples/** linguist-documentation
+**/example/** linguist-documentation
+**/examples/** linguist-documentation
+test-notebooks/** linguist-documentation

@@ -12,6 +12,8 @@ from pybliometrics.scopus import AbstractRetrieval
 from pybliometrics.scopus.exception import Scopus404Error
 
 from .types import (
+    DocIdentifier,
+    PybliometricsIDTypes,
     ScopusID,
     PaperInfo,
     Reference,
@@ -23,12 +25,12 @@ from .parsing import authors_to_str
 T = TypeVar('T')
 P = ParamSpec('P')
 
-logger = logging.getLogger('scopus_citpgraph.requests')
-LOGGING_LEVEL = 'INFO'
+logger = logging.getLogger('litcitgraph.requests')
+LOGGING_LEVEL = 'WARNING'
 logger.setLevel(LOGGING_LEVEL)
 
 def retry_scopus(
-    num_retries: int = 3
+    num_retries: int = 3,
 ) -> Callable[[Callable[P, T]], Callable[P, T | None]]:
     def wrapper(func: Callable[P, T]) -> Callable[P, T | None]:
         @functools.wraps(func)
@@ -44,10 +46,10 @@ def retry_scopus(
         return wrapper_func
     return wrapper
 
-@retry_scopus(num_retries=3)
+@retry_scopus(num_retries=2)
 def get_from_scopus(
-    identifier: str | ScopusID,
-    id_type: str,
+    identifier: str | DocIdentifier,
+    id_type: PybliometricsIDTypes,
     iter_depth: int,
     view: str = 'FULL',
 ) -> PaperInfo | None:
@@ -56,7 +58,7 @@ def get_from_scopus(
         retrieval = AbstractRetrieval(
             identifier=identifier, 
             view=view, 
-            id_type=id_type
+            id_type=id_type,
         )
     except Scopus404Error as error:
         raise error

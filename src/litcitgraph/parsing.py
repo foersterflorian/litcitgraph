@@ -1,28 +1,65 @@
-from typing import (
-    cast,
-    overload,
-    Literal,
-)
-from collections.abc import Iterable
+from typing import overload, Literal
+from collections.abc import Iterable, Iterator
 import logging
 from pathlib import Path
-
-import pandas as pd
-from pandas import Series
+import csv
 
 from .types import (
     DOI,
     EID,
-    ScopusExportIdentifier,
     PybliometricsAuthor,
 )
 
 # **logging
-logger = logging.getLogger('scopus_citpgraph.parsing')
+logger = logging.getLogger('litcitgraph.parsing')
 LOGGING_LEVEL = 'INFO'
 logger.setLevel(LOGGING_LEVEL)
 
+@overload
+def read_scopus_ids_from_csv(
+    path_to_csv: str | Path,
+    use_doi: Literal[True],
+) -> Iterator[DOI]:
+    ...
 
+@overload
+def read_scopus_ids_from_csv(
+    path_to_csv: str | Path,
+    use_doi: Literal[False],
+) -> Iterator[EID]:
+    ...
+
+def read_scopus_ids_from_csv(
+    path_to_csv: str | Path, 
+    use_doi: bool,
+    encoding: str = 'utf_8_sig',
+    batch_size: int | None = None,
+) -> Iterator[DOI | EID]:
+    key: Literal['DOI', 'EID']
+    if use_doi:
+        key = 'DOI'
+    else:
+        key = 'EID'
+    
+    if batch_size is not None and batch_size < 1:
+        raise ValueError("Batch size must be greater than 0.")
+    
+    with open(path_to_csv, 'r', encoding=encoding, newline='') as f:
+        reader = csv.DictReader(f)
+        for count, row in enumerate(reader):
+            if use_doi:
+                yield DOI(row[key])
+            else:
+                yield EID(row[key])
+            
+            if batch_size is not None and (count+1) >= batch_size:
+                break
+    
+    logger.info(("Reading completed. "
+                 f"Entries in dataset: {count+1}"))
+
+
+"""
 @overload
 def read_id_list_from_scopus(
     path_to_csv: str | Path,
@@ -69,6 +106,7 @@ def read_id_list_from_scopus(
     )
     
     return ids, use_doi
+"""
 
 def authors_to_str(
     authors: Iterable[PybliometricsAuthor],

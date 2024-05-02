@@ -5,14 +5,24 @@ from typing import (
     NewType,
     TypedDict,
     NotRequired,
+    Literal,
 )
 from dataclasses import dataclass, asdict
 
 # ** types
 ScopusID = NewType('ScopusID', int)
-DOI: TypeAlias = str
-EID: TypeAlias = str
-ScopusExportIdentifier: TypeAlias = DOI | EID
+#DOI: TypeAlias = str
+#EID: TypeAlias = str
+DOI = NewType('DOI', str)
+EID = NewType('EID', str)
+DocIdentifier: TypeAlias = ScopusID | DOI | EID
+PybliometricsIDTypes = Literal[
+    'eid',
+    'pii',
+    'scopus_id',
+    'pubmed_id',
+    'doi',
+]
 
 class PybliometricsAuthor(NamedTuple):
     auid: int
@@ -85,4 +95,9 @@ class PaperInfo:
         prop_dict = cast(PaperProperties, asdict(self))
         _ = prop_dict.pop('scopus_id', None)
         _ = prop_dict.pop('refs', None)
+        
+        for key, val in prop_dict.items():
+            if val is None:
+                prop_dict[key] = ''
+        
         return prop_dict

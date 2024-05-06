@@ -86,6 +86,7 @@ class PaperInfo:
     scopus_url: str
     refs: frozenset[Reference] | None
     pub_name: str | None
+    pub_issn: 
     
     def __key(self) -> tuple[ScopusID, EID]:
         return (self.scopus_id, self.eid)

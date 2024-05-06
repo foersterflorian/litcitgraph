@@ -8,11 +8,16 @@ authors = [
 dependencies = [
     "networkx>=3.3",
     "pybliometrics>=3.6",
+    "tqdm>=4.66.4",
 ]
 requires-python = ">=3.11"
 readme = "README.md"
 license = {text = "MIT"}
 
+[project.optional-dependencies]
+graphistry = [
+    "graphistry>=0.33.8",
+]
 [build-system]
 requires = ["pdm-backend"]
 build-backend = "pdm.backend"
@@ -24,4 +29,8 @@ distribution = true
 [tool.pdm.dev-dependencies]
 example-tests = [
     "jupyterlab>=4.1.8",
+    "ipywidgets>=8.1.2",
+]
+data-handling = [
+    "pandas>=2.2.2",
 ]

@@ -68,10 +68,11 @@ class PaperProperties(TypedDict):
     authors: str
     year: int
     scopus_id: NotRequired[ScopusID]
-    doi: str | None
-    eid: str
+    doi: DOI | Literal['']
+    eid: EID
     scopus_url: str
-    refs: NotRequired[frozenset[Reference] | None]
+    refs: NotRequired[frozenset[Reference] | Literal['']]
+    pub_name: str | Literal['']
 
 @dataclass(frozen=True, kw_only=True, slots=True)
 class PaperInfo:
@@ -80,10 +81,11 @@ class PaperInfo:
     authors: str
     year: int
     scopus_id: ScopusID
-    doi: str | None
-    eid: str
+    doi: DOI | None
+    eid: EID
     scopus_url: str
     refs: frozenset[Reference] | None
+    pub_name: str | None
     
     def __key(self) -> tuple[ScopusID, EID]:
         return (self.scopus_id, self.eid)
@@ -93,7 +95,7 @@ class PaperInfo:
     
     def graph_properties_as_dict(self) -> PaperProperties:
         prop_dict = cast(PaperProperties, asdict(self))
-        _ = prop_dict.pop('scopus_id', None)
+        #_ = prop_dict.pop('scopus_id', None)
         _ = prop_dict.pop('refs', None)
         
         for key, val in prop_dict.items():

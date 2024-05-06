@@ -3,6 +3,7 @@
 *.xlsx
 *.xlsm
 *.csv
+!SJR*.csv
 data/
 datasets/
 dataset/

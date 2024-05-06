@@ -10,11 +10,14 @@ import functools
 
 from pybliometrics.scopus import AbstractRetrieval
 from pybliometrics.scopus.exception import Scopus404Error
+from tqdm.auto import tqdm
 
 from .types import (
     DocIdentifier,
     PybliometricsIDTypes,
     ScopusID,
+    EID,
+    DOI,
     PaperInfo,
     Reference,
     PybliometricsReference,
@@ -68,9 +71,14 @@ def get_from_scopus(
     year = int(retrieval.coverDate.split('-')[0])
     scopus_id = ScopusID(retrieval.identifier)
     eid = retrieval.eid
+    if eid is not None:
+        eid = EID(eid)
     doi = retrieval.doi
+    if doi is not None:
+        doi = DOI(doi)
     scopus_url = retrieval.scopus_link
     references = retrieval.references
+    pub_name = retrieval.publicationName
     
     if title is None:
         logger.warning(f"{identifier=} not containing title.")
@@ -99,6 +107,7 @@ def get_from_scopus(
         eid=eid,
         scopus_url=scopus_url,
         refs=obtained_refs,
+        pub_name=pub_name,
     )
     
     return paper_info
@@ -128,11 +137,11 @@ def get_refs_from_scopus(
     iter_depth: int,
 ) -> Iterator[tuple[PaperInfo, PaperInfo | None]]:
     
-    for parent in papers:
+    for parent in tqdm(papers, position=0, leave=True):
         if parent.refs is None:
             continue
         
-        for ref in parent.refs:
+        for ref in tqdm(parent.refs, position=1, leave=False):
             child = get_from_scopus(
                 identifier=ref.scopus_id,
                 id_type='scopus_id',

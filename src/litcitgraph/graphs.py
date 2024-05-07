@@ -7,7 +7,7 @@ from pathlib import Path
 
 from networkx import DiGraph
 
-from .types import (
+from litcitgraph.types import (
     ScopusID,
     DOI,
     EID,
@@ -15,7 +15,7 @@ from .types import (
     PaperProperties,
     PaperInfo,
 )
-from .requests import get_from_scopus, get_refs_from_scopus
+from litcitgraph.requests import get_from_scopus, get_refs_from_scopus
 
 logger = logging.getLogger('litcitgraph.graphs')
 LOGGING_LEVEL = 'INFO'

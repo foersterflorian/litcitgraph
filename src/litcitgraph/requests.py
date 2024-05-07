@@ -12,7 +12,7 @@ from pybliometrics.scopus import AbstractRetrieval
 from pybliometrics.scopus.exception import Scopus404Error
 from tqdm.auto import tqdm
 
-from .types import (
+from litcitgraph.types import (
     DocIdentifier,
     PybliometricsIDTypes,
     ScopusID,
@@ -22,8 +22,9 @@ from .types import (
     Reference,
     PybliometricsReference,
     PybliometricsAuthor,
+    PybliometricsISSN,
 )
-from .parsing import authors_to_str
+from litcitgraph.parsing import authors_to_str
 
 T = TypeVar('T')
 P = ParamSpec('P')
@@ -79,6 +80,7 @@ def get_from_scopus(
     scopus_url = retrieval.scopus_link
     references = retrieval.references
     pub_name = retrieval.publicationName
+    pub_issns = retrieval.issn
     
     if title is None:
         logger.warning(f"{identifier=} not containing title.")
@@ -97,6 +99,14 @@ def get_from_scopus(
     else:
         obtained_refs = None
     
+    if pub_issns is not None:
+        pub_issns = cast(PybliometricsISSN, pub_issns)
+        pub_issn_print = pub_issns.print
+        pub_issn_electronic = pub_issns.electronic
+    else:
+        pub_issn_print = None
+        pub_issn_electronic = None
+    
     paper_info = PaperInfo(
         iter_depth=iter_depth,
         title=title,
@@ -108,6 +118,8 @@ def get_from_scopus(
         scopus_url=scopus_url,
         refs=obtained_refs,
         pub_name=pub_name,
+        pub_issn_print=pub_issn_print,
+        pub_issn_electronic=pub_issn_electronic,
     )
     
     return paper_info

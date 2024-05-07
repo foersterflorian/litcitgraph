@@ -1,3 +1,4 @@
+from __future__ import annotations
 from typing import (
     cast,
     TypeAlias,
@@ -6,13 +7,13 @@ from typing import (
     TypedDict,
     NotRequired,
     Literal,
+    Any
 )
+from collections.abc import Iterable
 from dataclasses import dataclass, asdict
 
-# ** types
+
 ScopusID = NewType('ScopusID', int)
-#DOI: TypeAlias = str
-#EID: TypeAlias = str
 DOI = NewType('DOI', str)
 EID = NewType('EID', str)
 DocIdentifier: TypeAlias = ScopusID | DOI | EID
@@ -23,6 +24,10 @@ PybliometricsIDTypes = Literal[
     'pubmed_id',
     'doi',
 ]
+SourceTitle: TypeAlias = str
+NestedIterable: TypeAlias = Iterable['Any | NestedIterable']
+ISSN: TypeAlias = str
+
 
 class PybliometricsAuthor(NamedTuple):
     auid: int
@@ -51,6 +56,10 @@ class PybliometricsReference(NamedTuple):
     text: str | None
     fulltext: str | None
 
+class PybliometricsISSN(NamedTuple):
+    print: str
+    electronic: str
+
 @dataclass(frozen=True, kw_only=True, slots=True)
 class Reference:
     scopus_id: ScopusID
@@ -67,12 +76,14 @@ class PaperProperties(TypedDict):
     title: str
     authors: str
     year: int
-    scopus_id: NotRequired[ScopusID]
+    scopus_id: ScopusID
     doi: DOI | Literal['']
     eid: EID
     scopus_url: str
     refs: NotRequired[frozenset[Reference] | Literal['']]
     pub_name: str | Literal['']
+    pub_issn_print: str | Literal['']
+    pub_issn_electronic: str | Literal['']
 
 @dataclass(frozen=True, kw_only=True, slots=True)
 class PaperInfo:
@@ -86,7 +97,8 @@ class PaperInfo:
     scopus_url: str
     refs: frozenset[Reference] | None
     pub_name: str | None
-    pub_issn: 
+    pub_issn_print: str | None
+    pub_issn_electronic: str | None
     
     def __key(self) -> tuple[ScopusID, EID]:
         return (self.scopus_id, self.eid)
@@ -96,7 +108,6 @@ class PaperInfo:
     
     def graph_properties_as_dict(self) -> PaperProperties:
         prop_dict = cast(PaperProperties, asdict(self))
-        #_ = prop_dict.pop('scopus_id', None)
         _ = prop_dict.pop('refs', None)
         
         for key, val in prop_dict.items():

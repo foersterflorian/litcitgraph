@@ -4,7 +4,7 @@ import logging
 from pathlib import Path
 import csv
 
-from .types import (
+from litcitgraph.types import (
     DOI,
     EID,
     PybliometricsAuthor,
@@ -57,56 +57,6 @@ def read_scopus_ids_from_csv(
     
     logger.info(("Reading completed. "
                  f"Entries in dataset: {count+1}"))
-
-
-"""
-@overload
-def read_id_list_from_scopus(
-    path_to_csv: str | Path,
-    use_doi: Literal[True],
-) -> tuple[tuple[DOI, ...], Literal[True]]:
-    ...
-
-@overload
-def read_id_list_from_scopus(
-    path_to_csv: str | Path,
-    use_doi: Literal[False] = ...,
-) -> tuple[tuple[EID, ...], Literal[False]]:
-    ...
-
-@overload
-def read_id_list_from_scopus(
-    path_to_csv: str | Path,
-    use_doi: bool = ...,
-) -> tuple[tuple[DOI | EID, ...], bool]:
-    ...
-
-def read_id_list_from_scopus(
-    path_to_csv, 
-    use_doi=False,
-):
-    data = pd.read_csv(path_to_csv, encoding='UTF-8')
-    
-    if use_doi:
-        key = 'DOI'
-    else:
-        key = 'EID'
-    
-    ids = data[key]
-    ids = cast(Series, ids.dropna(ignore_index=True)) # type: ignore
-    ids = cast(tuple[ScopusExportIdentifier, ...], tuple(ids.to_list()))
-    
-    total_num_entries = len(data)
-    cleaned_num_entries = len(ids)
-    nan_entries = total_num_entries - cleaned_num_entries
-    logger.info(
-        f"Entries in dataset: {total_num_entries}, "
-        f"Entries after cleansing: {cleaned_num_entries}, "
-        f"empty: {nan_entries}"
-    )
-    
-    return ids, use_doi
-"""
 
 def authors_to_str(
     authors: Iterable[PybliometricsAuthor],

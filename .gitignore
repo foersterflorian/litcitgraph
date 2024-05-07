@@ -1,4 +1,5 @@
 # data sets or data sources which could contain sensitive information
+keys.toml
 *.xls
 *.xlsx
 *.xlsm

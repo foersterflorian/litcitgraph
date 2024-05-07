@@ -3,6 +3,7 @@ from typing import (
     cast, 
     Final,
 )
+import logging
 from pathlib import Path
 
 import pandas as pd
@@ -10,6 +11,7 @@ from pandas import DataFrame
 from thefuzz import process
 
 from litcitgraph.types import SourceTitle, ISSN, RankProperties, RankingScore
+from litcitgraph.graphs import CitationGraph
 from litcitgraph.errors import TooManyFuzzyMatchesError
 from litcitgraph.ranking.common import flatten, extract_issn
 
@@ -20,14 +22,18 @@ SOURCE_TYPE: Final[str] = 'journal'
 TARGET_SCORE: Final[str] = 'SJR'
 SCORE_MULTIPLIER: Final[int] = 1000
 
+logger = logging.getLogger('litcitgraph.ranking.ranks')
+LOGGING_LEVEL = 'INFO'
+logger.setLevel(LOGGING_LEVEL)
 
-def read_sjr_data(
+
+def read_ranking_data(
     path_folder: Path,
-    target_score: str = TARGET_SCORE,
-    source_type: str | None = SOURCE_TYPE,
+    target_score: RankProperties = 'SJR',
+    source_type: str = 'journal',
     num_entries_per_file: int = 20,
 ) -> DataFrame:
-    whitelist_data = pd.DataFrame()
+    ranking_data = pd.DataFrame()
     
     for file in path_folder.glob(r'*.csv'):
         df = pd.read_csv(file, sep=';', encoding='utf_8')
@@ -43,106 +49,136 @@ def read_sjr_data(
         df = df.sort_values(target_score, ascending=False)
         subset_data = df.iloc[:num_entries_per_file]
         
-        if whitelist_data.empty:
-            whitelist_data = df.copy()
+        if ranking_data.empty:
+            ranking_data = df.copy()
         else:
-            whitelist_data = pd.concat([whitelist_data, subset_data])
+            ranking_data = pd.concat([ranking_data, subset_data])
 
-    whitelist_data = whitelist_data.drop_duplicates(subset=['Sourceid'])
+    ranking_data = ranking_data.drop_duplicates(subset=['Sourceid'])
     
-    return whitelist_data.copy()
+    return ranking_data.copy()
 
 def obtain_match_info(
-    whitelist_data: DataFrame,
-) -> tuple[frozenset[SourceTitle], frozenset[ISSN]]:
-    
-    # source titles
-    relevant_journals = cast(frozenset[SourceTitle],
-                             frozenset(whitelist_data['Title'].to_list()))
+    ranking_data: DataFrame,
+) -> tuple[frozenset[ISSN], frozenset[SourceTitle]]:
     # ISSNs
     issns = cast(list[str | list[str]], 
-                 whitelist_data['Issn'].astype(str).apply(extract_issn).to_list())
+                 ranking_data['Issn'].astype(str).apply(extract_issn).to_list())
     relevant_issns = cast(frozenset[ISSN],
                           frozenset(flatten(issns)))
+    # source titles
+    relevant_journals = cast(frozenset[SourceTitle],
+                             frozenset(ranking_data['Title'].to_list()))
     
-    return relevant_journals, relevant_issns
+    return relevant_issns, relevant_journals
 
-def match_ISSN(
-    issn: ISSN,
-    relevant_issns: frozenset[ISSN],
-) -> bool:
-    if issn in relevant_issns:
-        return True
-    else:
-        return False
 
-def match_journal_title(
-    journal_title: str,
-    relevant_journals: frozenset[SourceTitle],
-    fuzzy_threshold: float = 94.,
-    fuzzy_match_limit: int = 2,
-) -> tuple[bool, SourceTitle | None]:
-    journal_title = journal_title.lower()
-    if journal_title in relevant_journals:
-        return True, journal_title
+class GraphScorer:
     
-    matches = process.extract(journal_title, relevant_journals, limit=fuzzy_match_limit)
-    target_journals: list[SourceTitle] = []
-    for title, score in matches:
-        if score > fuzzy_threshold:
-            target_journals.append(title)
+    def __init__(
+        self,
+        path_ranking_data: Path,
+        target_score: RankProperties = 'SJR',
+        source_type: str = 'journal',
+        num_entries_per_file: int = 20,
+        fuzzy_threshold: float = 94.,
+        fuzzy_match_limit: int = 2,
+    ) -> None:
+        
+        self.ranking_data = read_ranking_data(path_folder=path_ranking_data,
+                                              target_score=target_score,
+                                              source_type=source_type,
+                                              num_entries_per_file=num_entries_per_file)
+        
+        (self.relevant_issns, 
+         self.relevant_journals) = obtain_match_info(self.ranking_data)
+        self.fuzzy_threshold = fuzzy_threshold
+        self.fuzzy_match_limit = fuzzy_match_limit
     
-    if len(target_journals) == 0:
-        return False, None
-    elif len(target_journals) == 1:
-        return True, target_journals[0]
-    else:
-        raise TooManyFuzzyMatchesError("More than one journal matched")
+    def match_journal_title(
+        self,
+        journal_title: str,
+    ) -> tuple[bool, SourceTitle | None]:
+        journal_title = journal_title.lower()
+        if journal_title in self.relevant_journals:
+            return True, journal_title
+        
+        matches = process.extract(journal_title, self.relevant_journals, limit=self.fuzzy_match_limit)
+        target_journals: list[SourceTitle] = []
+        for title, score in matches:
+            if score > self.fuzzy_threshold:
+                target_journals.append(title)
+        
+        if len(target_journals) == 0:
+            return False, None
+        elif len(target_journals) == 1:
+            return True, target_journals[0]
+        else:
+            raise TooManyFuzzyMatchesError("More than one journal matched")
 
-def match_rank(
-    whitelist_data: DataFrame,
-    issn: ISSN | None,
-    relevant_issns: frozenset[ISSN],
-    journal_title: SourceTitle | None,
-    relevant_journals: frozenset[SourceTitle],
-) -> RankingScore | None:
-    if not any((issn, journal_title)):
-        raise ValueError("Either ISSN or journal title must be provided")
-    
-    is_match: bool
-    # ** ISSN lookup has priority
-    if issn is not None:
-        is_match = match_ISSN(issn, relevant_issns)
-    if is_match:
-        rank_score = lookup_rank(whitelist_data, issn=issn)
-        return rank_score
-    
-    # ** journal title
-    if journal_title is not None:
-        is_match, journal_title = match_journal_title(journal_title, relevant_journals)
-    if is_match:
-        rank_score = lookup_rank(whitelist_data, journal_title=journal_title)
-        return rank_score
-    else:
-        return None
+    def match_rank(
+        self,
+        issn: ISSN | None,
+        journal_title: SourceTitle | None,
+    ) -> RankingScore | None:
+        if not any((issn, journal_title)):
+            raise ValueError("Either ISSN or journal title must be provided")
+        
+        is_match: bool
+        # ** ISSN lookup has priority
+        if issn is not None:
+            is_match = issn in self.relevant_issns
+        if is_match:
+            rank_score = self.lookup_rank(issn=issn)
+            return rank_score
+        
+        # ** journal title
+        if journal_title is not None:
+            is_match, journal_title = self.match_journal_title(journal_title)
+        if is_match:
+            rank_score = self.lookup_rank(journal_title=journal_title)
+            return rank_score
+        else:
+            return None
 
-def lookup_rank(
-    whitelist_data: DataFrame,
-    *,
-    issn: ISSN | None = None,
-    journal_title: SourceTitle | None = None,
-    rank_property: RankProperties = 'SJR',
-) -> RankingScore:
-    # ISSN lookup has priority
-    if issn is not None:
-        rank_score = cast(int, 
-                          whitelist_data.loc[whitelist_data['Issn']==issn, rank_property].iat[0])
-        # score was multiplied by SCORE_MULTIPLIER, reverse operation
-        return RankingScore(rank_score / SCORE_MULTIPLIER)
-    elif journal_title is not None:
-        rank_score = cast(int, 
-                          whitelist_data.loc[whitelist_data['Title']==journal_title.lower(), rank_property].iat[0])
-        # score was multiplied by SCORE_MULTIPLIER, reverse operation
-        return RankingScore(rank_score / SCORE_MULTIPLIER)
-    else:
-        raise ValueError("Either ISSN or journal title must be provided")
+    def lookup_rank(
+        self,
+        *,
+        issn: ISSN | None = None,
+        journal_title: SourceTitle | None = None,
+        rank_property: RankProperties = 'SJR',
+    ) -> RankingScore:
+        # ISSN lookup has priority
+        if issn is not None:
+            rank_score = cast(int, 
+                            self.ranking_data
+                            .loc[self.ranking_data['Issn']==issn, rank_property]
+                            .iat[0])
+            # score was multiplied by SCORE_MULTIPLIER, reverse operation
+            return RankingScore(rank_score / SCORE_MULTIPLIER)
+        elif journal_title is not None:
+            rank_score = cast(int, 
+                            self.ranking_data
+                            .loc[self.ranking_data['Title']==journal_title.lower(), rank_property]
+                            .iat[0])
+            # score was multiplied by SCORE_MULTIPLIER, reverse operation
+            return RankingScore(rank_score / SCORE_MULTIPLIER)
+        else:
+            raise ValueError("Either ISSN or journal title must be provided")
+    
+    def score_graph(
+        self,
+        graph: CitationGraph,
+    ) -> CitationGraph:
+        # TODO check implementation
+        for node in graph.nodes:
+            node_props = graph.nodes[node]
+            issn = node_props['pub_issn_print']
+            journal_title = node_props['pub_name']
+            rank_score = self.match_rank(issn=issn, journal_title=journal_title)
+            if rank_score is not None:
+                node_props['rank_score'] = rank_score
+            else:
+                logger.warning(f"No rank found for {node}")
+        
+        return graph

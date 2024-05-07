@@ -70,7 +70,6 @@ class CitationGraph(DiGraph):
         self.retrievals_failed: int = 0
         
         self.parent_papers_iter: set[PaperInfo] = set()
-        #self.parent_paper_current: PaperInfo | None = None
         self.child_papers_iter: set[PaperInfo] = set()
         self.iteration_completed: bool = True
     
@@ -265,13 +264,6 @@ class CitationGraph(DiGraph):
         logger.info("Initialisation completed.")
         
         self.resume_build_process(target_iter_depth)
-        
-        """
-        for it in range(target_iter_depth):
-            logger.info(f"Starting iteration {it+1}...")
-            self.__iterate()
-            logger.info(f"Iteration {it+1} successfully completed.")
-        """
         
         logger.info("Building of citation graph completed.")
 

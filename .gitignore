@@ -21,6 +21,9 @@ file_system_backend/
 *.pdm-python
 .pdm-build/
 
+# VSCode
+.vscode/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

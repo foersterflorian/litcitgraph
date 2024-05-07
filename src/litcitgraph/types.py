@@ -24,9 +24,21 @@ PybliometricsIDTypes = Literal[
     'pubmed_id',
     'doi',
 ]
-SourceTitle: TypeAlias = str
-NestedIterable: TypeAlias = Iterable['Any | NestedIterable']
+SourceTitle: TypeAlias = str # title of publication source (e.g. journal)
 ISSN: TypeAlias = str
+RankingScore = NewType('RankingScore', float)
+NestedIterable: TypeAlias = Iterable['Any | NestedIterable']
+RankProperties = Literal[
+    'SJR',
+    'SJR Quartile',
+    'H Index',
+    'Total Docs. (3years)',
+    'Total Refs.',
+    'Total Cites (3years)',
+    'Citable Docs. (3years)',
+    'Cites / Doc. (2years)',
+    'Ref. / Doc.',
+]
 
 
 class PybliometricsAuthor(NamedTuple):
@@ -57,8 +69,8 @@ class PybliometricsReference(NamedTuple):
     fulltext: str | None
 
 class PybliometricsISSN(NamedTuple):
-    print: str
-    electronic: str
+    print: ISSN
+    electronic: ISSN
 
 @dataclass(frozen=True, kw_only=True, slots=True)
 class Reference:
@@ -81,9 +93,9 @@ class PaperProperties(TypedDict):
     eid: EID
     scopus_url: str
     refs: NotRequired[frozenset[Reference] | Literal['']]
-    pub_name: str | Literal['']
-    pub_issn_print: str | Literal['']
-    pub_issn_electronic: str | Literal['']
+    pub_name: SourceTitle | Literal['']
+    pub_issn_print: ISSN | Literal['']
+    pub_issn_electronic: ISSN | Literal['']
 
 @dataclass(frozen=True, kw_only=True, slots=True)
 class PaperInfo:
@@ -96,9 +108,9 @@ class PaperInfo:
     eid: EID
     scopus_url: str
     refs: frozenset[Reference] | None
-    pub_name: str | None
-    pub_issn_print: str | None
-    pub_issn_electronic: str | None
+    pub_name: SourceTitle | None
+    pub_issn_print: ISSN | None
+    pub_issn_electronic: ISSN | None
     
     def __key(self) -> tuple[ScopusID, EID]:
         return (self.scopus_id, self.eid)

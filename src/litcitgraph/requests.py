@@ -18,6 +18,7 @@ from litcitgraph.types import (
     ScopusID,
     EID,
     DOI,
+    SourceTitle,
     PaperInfo,
     Reference,
     PybliometricsReference,
@@ -99,6 +100,9 @@ def get_from_scopus(
     else:
         obtained_refs = None
     
+    if pub_name is not None:
+        pub_name = cast(SourceTitle, pub_name)
+    
     if pub_issns is not None:
         pub_issns = cast(PybliometricsISSN, pub_issns)
         pub_issn_print = pub_issns.print
@@ -135,8 +139,6 @@ def obtain_ref_info(
             doi = ref.doi
             obtained_ref = Reference(scopus_id=scopus_id, doi=doi)
             obtained_refs.add(obtained_ref)
-        else:
-            continue
     
     if obtained_refs:
         return frozenset(obtained_refs)

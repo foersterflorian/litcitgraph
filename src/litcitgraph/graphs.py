@@ -68,6 +68,11 @@ class CitationGraph(DiGraph):
         self.papers_by_iter_depth: dict[int, frozenset[PaperInfo]] = {}
         self.retrievals_total: int = 0
         self.retrievals_failed: int = 0
+        
+        self.parent_papers_iter: set[PaperInfo] = set()
+        #self.parent_paper_current: PaperInfo | None = None
+        self.child_papers_iter: set[PaperInfo] = set()
+        self.iteration_completed: bool = True
     
     def __repr__(self) -> str:
         return (f"CitationGraph(name={self.name}, "
@@ -175,25 +180,43 @@ class CitationGraph(DiGraph):
         
         self.papers_by_iter_depth[self.iter_depth] = frozenset(papers_init)
     
-    def __iterate(self) -> None:
-        
+    def __iterate_full(self) -> None:
+        target_papers = self.papers_by_iter_depth[self.iter_depth]
+        self.parent_papers_iter = set(self.papers_by_iter_depth[self.iter_depth])
+        self.child_papers_iter.clear()
+        self.__iterate(target_papers)
+    
+    def __iterate_partial(self) -> None:
+        target_papers = frozenset(self.parent_papers_iter)
+        # parent and child papers saved from previous iteration as property
+        self.__iterate(target_papers)
+    
+    def __iterate(
+        self,
+        target_papers: frozenset[PaperInfo],
+    ) -> None:
+        self.iteration_completed = False
         target_iter_depth = self.iter_depth + 1
-        papers = self.papers_by_iter_depth[self.iter_depth]
+        parent_paper_current: PaperInfo | None = None
         
-        papers_iteration: set[PaperInfo] = set()
-        references = get_refs_from_scopus(papers, target_iter_depth)
+        references = get_refs_from_scopus(target_papers, target_iter_depth)
         
-        for parent, child in references:
+        for count, (parent, child) in enumerate(references):
             self.retrievals_total += 1
+            if parent_paper_current is None:
+                parent_paper_current = parent
+            elif parent_paper_current != parent:
+                self.parent_papers_iter.remove(parent_paper_current)
+                parent_paper_current = parent
             if child is None:
                 self.retrievals_failed += 1
                 continue
             
-            if (child not in papers_iteration and
+            if (child not in self.child_papers_iter and
                 child.scopus_id not in self.nodes):
                 # check if paper already in current iteration
                 # or prior ones (already added to graph)
-                papers_iteration.add(child)
+                self.child_papers_iter.add(child)
 
             add_cit_graph_edge(
                 graph=self, 
@@ -202,9 +225,25 @@ class CitationGraph(DiGraph):
                 child_node=child.scopus_id,
                 child_node_props=child.graph_properties_as_dict(),
             )
-        
+        # in case of interruption would not get called
+        self.parent_papers_iter.remove(parent)
         self.iter_depth = target_iter_depth
-        self.papers_by_iter_depth[self.iter_depth] = frozenset(papers_iteration)
+        self.iteration_completed = True
+        self.papers_by_iter_depth[self.iter_depth] = frozenset(self.child_papers_iter)
+    
+    def resume_build_process(
+        self,
+        target_iter_depth: int,
+    ) -> None:
+        for it in range(self.iter_depth, target_iter_depth):
+            logger.info(f"Starting iteration {it+1}...")
+            if self.iteration_completed:
+                self.__iterate_full()
+            else:
+                logger.info((f"Iteration {it+1} was partially "
+                             "completed before. Resume..."))
+                self.__iterate_partial()
+            logger.info(f"Iteration {it+1} successfully completed.")
     
     def build_from_ids(
         self,
@@ -225,10 +264,14 @@ class CitationGraph(DiGraph):
         self.__initialise(ids=ids, use_doi=use_doi)
         logger.info("Initialisation completed.")
         
+        self.resume_build_process(target_iter_depth)
+        
+        """
         for it in range(target_iter_depth):
             logger.info(f"Starting iteration {it+1}...")
             self.__iterate()
             logger.info(f"Iteration {it+1} successfully completed.")
+        """
         
         logger.info("Building of citation graph completed.")
 

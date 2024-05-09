@@ -19,6 +19,8 @@ logger.setLevel(LOGGING_LEVEL)
 def read_scopus_ids_from_csv(
     path_to_csv: str | Path,
     use_doi: Literal[True],
+    encoding: str = ...,
+    batch_size: int | None = ...,
 ) -> Iterator[DOI]:
     ...
 
@@ -26,6 +28,8 @@ def read_scopus_ids_from_csv(
 def read_scopus_ids_from_csv(
     path_to_csv: str | Path,
     use_doi: Literal[False],
+    encoding: str = ...,
+    batch_size: int | None = ...,
 ) -> Iterator[EID]:
     ...
 

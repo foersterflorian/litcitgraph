@@ -9,7 +9,9 @@ __all__ = [
     'GRPHSTRY_PERS_KEY',
 ]
 
+
 logging.basicConfig(stream=sys.stdout)
+
 
 package_directory = Path(__file__).parent
 config_path = package_directory / 'keys.toml'

@@ -57,10 +57,15 @@ class CitationGraph(DiGraph):
     
     def __init__(
         self,
+        path_interim: str | Path,
         name: str = 'CitationGraph',
         **kwargs,
     ) -> None:
         super().__init__(**kwargs)
+        
+        if isinstance(path_interim, str):
+            path_interim = Path(path_interim)
+        self._path_interim = path_interim
         
         self._name: str = name
         self.use_doi: bool
@@ -80,16 +85,25 @@ class CitationGraph(DiGraph):
                 f"number of edges: {len(self.edges)})")
     
     @property
+    def path_interim(self) -> Path:
+        return self._path_interim
+    
+    @property
     def name(self) -> str:
         return self._name
     
     def deepcopy(self) -> Self:
         return copy.deepcopy(self)
     
+    def _quota_exceeded(self) -> None:
+        logger.warning(("Quota exceeded. Stopping build process. "
+                        "Save current state to resume later."))
+        self.save_pickle(self.path_interim)
+    
     @staticmethod
     def prep_save(
         path: str | Path,
-        suffix: str = '.pkl',
+        suffix: str = '.pickle',
     ) -> Path:
         if isinstance(path, str):
             path = Path(path)
@@ -103,6 +117,7 @@ class CitationGraph(DiGraph):
         path = self.prep_save(path)
         with open(path, 'wb') as f:
             pickle.dump(self, f)
+        logger.info(f"Graph successfully saved to {path}.")
     
     @classmethod
     def load_pickle(
@@ -132,7 +147,7 @@ class CitationGraph(DiGraph):
         self,
         ids: Iterator[DOI | EID],
         use_doi: bool,
-    ) -> None:
+    ) -> bool:
         """initialise citation graph with data from search query to retain
         papers which do not have any reference data
 
@@ -156,13 +171,16 @@ class CitationGraph(DiGraph):
         
         for identifier in ids:
             # obtain information from Scopus
-            paper_info = get_from_scopus(
+            quota_exceeded, paper_info = get_from_scopus(
                 identifier=identifier, 
                 id_type=id_type,
                 iter_depth=self.iter_depth,
             )
-            self.retrievals_total += 1
+            if quota_exceeded:
+                self._quota_exceeded()
+                return False
             
+            self.retrievals_total += 1
             if paper_info is None:
                 self.retrievals_failed += 1
                 continue
@@ -178,29 +196,35 @@ class CitationGraph(DiGraph):
                 papers_init.add(paper_info)
         
         self.papers_by_iter_depth[self.iter_depth] = frozenset(papers_init)
+        
+        return True
     
-    def __iterate_full(self) -> None:
+    def __iterate_full(self) -> bool:
         target_papers = self.papers_by_iter_depth[self.iter_depth]
         self.parent_papers_iter = set(self.papers_by_iter_depth[self.iter_depth])
         self.child_papers_iter.clear()
-        self.__iterate(target_papers)
+        return self.__iterate(target_papers)
     
-    def __iterate_partial(self) -> None:
+    def __iterate_partial(self) -> bool:
         target_papers = frozenset(self.parent_papers_iter)
         # parent and child papers saved from previous iteration as property
-        self.__iterate(target_papers)
+        return self.__iterate(target_papers)
     
     def __iterate(
         self,
         target_papers: frozenset[PaperInfo],
-    ) -> None:
+    ) -> bool:
         self.iteration_completed = False
         target_iter_depth = self.iter_depth + 1
         parent_paper_current: PaperInfo | None = None
         
         references = get_refs_from_scopus(target_papers, target_iter_depth)
         
-        for count, (parent, child) in enumerate(references):
+        for count, (quota_exceeded, parent, child) in enumerate(references):
+            if quota_exceeded:
+                self._quota_exceeded()
+                return False
+            
             self.retrievals_total += 1
             if parent_paper_current is None:
                 parent_paper_current = parent
@@ -229,20 +253,29 @@ class CitationGraph(DiGraph):
         self.iter_depth = target_iter_depth
         self.iteration_completed = True
         self.papers_by_iter_depth[self.iter_depth] = frozenset(self.child_papers_iter)
+        
+        return True
     
     def resume_build_process(
         self,
         target_iter_depth: int,
-    ) -> None:
+    ) -> bool:
         for it in range(self.iter_depth, target_iter_depth):
             logger.info(f"Starting iteration {it+1}...")
             if self.iteration_completed:
-                self.__iterate_full()
+                success = self.__iterate_full()
             else:
                 logger.info((f"Iteration {it+1} was partially "
                              "completed before. Resume..."))
-                self.__iterate_partial()
-            logger.info(f"Iteration {it+1} successfully completed.")
+                success = self.__iterate_partial()
+            
+            if not success:
+                logger.warning(f"Iteration {it+1} failed. Aborted.")
+                break
+            else:
+                logger.info(f"Iteration {it+1} successfully completed.")
+        
+        return success
     
     def build_from_ids(
         self,
@@ -256,14 +289,22 @@ class CitationGraph(DiGraph):
             logger.warning(("Target depth is 0, only initialising with "
                             "given document IDs."))
         
+        success: bool
         logger.info("Building citation graph...")
         logger.info((f"...target depth: {target_iter_depth}, "
                     f"using DOI: {use_doi}..."))
+        
         logger.info("Initialising graph with given IDs...")
-        self.__initialise(ids=ids, use_doi=use_doi)
-        logger.info("Initialisation completed.")
+        success = self.__initialise(ids=ids, use_doi=use_doi)
+        if success:
+            logger.info("Initialisation completed.")
+        else:
+            logger.warning("Initialisation failed.")
+            return None
         
-        self.resume_build_process(target_iter_depth)
-        
-        logger.info("Building of citation graph completed.")
+        success = self.resume_build_process(target_iter_depth)
+        if success:
+            logger.info("Building of citation graph completed.")
+        else:
+            logger.warning("Building of citation graph failed.")
 

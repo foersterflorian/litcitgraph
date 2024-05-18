@@ -1,4 +1,4 @@
-from typing import Self
+from typing import Self, Final
 from collections.abc import Iterator
 import logging
 import copy
@@ -8,6 +8,7 @@ from pathlib import Path
 from networkx import DiGraph
 
 from litcitgraph.types import (
+    LoggingLevels,
     ScopusID,
     DOI,
     EID,
@@ -18,7 +19,7 @@ from litcitgraph.types import (
 from litcitgraph.requests import get_from_scopus, get_refs_from_scopus
 
 logger = logging.getLogger('litcitgraph.graphs')
-LOGGING_LEVEL = 'INFO'
+LOGGING_LEVEL: Final[LoggingLevels] = 'INFO'
 logger.setLevel(LOGGING_LEVEL)
 
 
@@ -143,7 +144,7 @@ class CitationGraph(DiGraph):
         
         return export_graph
 
-    def __initialise(
+    def _initialise(
         self,
         ids: Iterator[DOI | EID],
         use_doi: bool,
@@ -199,18 +200,18 @@ class CitationGraph(DiGraph):
         
         return True
     
-    def __iterate_full(self) -> bool:
+    def _iterate_full(self) -> bool:
         target_papers = self.papers_by_iter_depth[self.iter_depth]
         self.parent_papers_iter = set(self.papers_by_iter_depth[self.iter_depth])
         self.child_papers_iter.clear()
-        return self.__iterate(target_papers)
+        return self._iterate(target_papers)
     
-    def __iterate_partial(self) -> bool:
+    def _iterate_partial(self) -> bool:
         target_papers = frozenset(self.parent_papers_iter)
         # parent and child papers saved from previous iteration as property
-        return self.__iterate(target_papers)
+        return self._iterate(target_papers)
     
-    def __iterate(
+    def _iterate(
         self,
         target_papers: frozenset[PaperInfo],
     ) -> bool:
@@ -263,11 +264,11 @@ class CitationGraph(DiGraph):
         for it in range(self.iter_depth, target_iter_depth):
             logger.info(f"Starting iteration {it+1}...")
             if self.iteration_completed:
-                success = self.__iterate_full()
+                success = self._iterate_full()
             else:
                 logger.info((f"Iteration {it+1} was partially "
                              "completed before. Resume..."))
-                success = self.__iterate_partial()
+                success = self._iterate_partial()
             
             if not success:
                 logger.warning(f"Iteration {it+1} failed. Aborted.")
@@ -295,7 +296,7 @@ class CitationGraph(DiGraph):
                     f"using DOI: {use_doi}..."))
         
         logger.info("Initialising graph with given IDs...")
-        success = self.__initialise(ids=ids, use_doi=use_doi)
+        success = self._initialise(ids=ids, use_doi=use_doi)
         if success:
             logger.info("Initialisation completed.")
         else:

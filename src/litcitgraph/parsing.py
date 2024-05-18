@@ -1,10 +1,11 @@
-from typing import overload, Literal
+from typing import overload, Literal, Final
 from collections.abc import Iterable, Iterator
 import logging
 from pathlib import Path
 import csv
 
 from litcitgraph.types import (
+    LoggingLevels,
     DOI,
     EID,
     PybliometricsAuthor,
@@ -12,7 +13,7 @@ from litcitgraph.types import (
 
 # **logging
 logger = logging.getLogger('litcitgraph.parsing')
-LOGGING_LEVEL = 'INFO'
+LOGGING_LEVEL: Final[LoggingLevels] = 'INFO'
 logger.setLevel(LOGGING_LEVEL)
 
 @overload

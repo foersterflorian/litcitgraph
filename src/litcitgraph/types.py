@@ -12,12 +12,18 @@ from typing import (
 from collections.abc import Iterable
 from dataclasses import dataclass, asdict
 
-
+LoggingLevels: TypeAlias = Literal[
+    'DEBUG',
+    'INFO',
+    'WARNING',
+    'ERROR',
+    'CRITICAL',
+]
 ScopusID = NewType('ScopusID', int)
 DOI = NewType('DOI', str)
 EID = NewType('EID', str)
 DocIdentifier: TypeAlias = ScopusID | DOI | EID
-PybliometricsIDTypes = Literal[
+PybliometricsIDTypes: TypeAlias = Literal[
     'eid',
     'pii',
     'scopus_id',
@@ -28,7 +34,7 @@ SourceTitle: TypeAlias = str # title of publication source (e.g. journal)
 ISSN: TypeAlias = str
 RankingScore = NewType('RankingScore', float)
 NestedIterable: TypeAlias = Iterable['Any | NestedIterable']
-RankProperties = Literal[
+RankPropertiesSJR: TypeAlias = Literal[
     'SJR',
     'SJR Quartile',
     'H Index',
@@ -39,6 +45,7 @@ RankProperties = Literal[
     'Cites / Doc. (2years)',
     'Ref. / Doc.',
 ]
+FuzzyMatches: TypeAlias = list[tuple[SourceTitle, float]]
 
 
 class PybliometricsAuthor(NamedTuple):
@@ -96,6 +103,7 @@ class PaperProperties(TypedDict):
     pub_name: SourceTitle | Literal['']
     pub_issn_print: ISSN | Literal['']
     pub_issn_electronic: ISSN | Literal['']
+    rank_score: NotRequired[RankingScore | Literal[0]]
 
 @dataclass(frozen=True, kw_only=True, slots=True)
 class PaperInfo:

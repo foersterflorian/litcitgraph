@@ -1,5 +1,6 @@
 from typing import (
     cast,
+    Final,
     Callable,
     TypeVar, 
     ParamSpec,
@@ -13,6 +14,7 @@ from pybliometrics.scopus.exception import Scopus404Error, Scopus429Error
 from tqdm.auto import tqdm
 
 from litcitgraph.types import (
+    LoggingLevels,
     DocIdentifier,
     PybliometricsIDTypes,
     ScopusID,
@@ -31,7 +33,7 @@ T = TypeVar('T')
 P = ParamSpec('P')
 
 logger = logging.getLogger('litcitgraph.requests')
-LOGGING_LEVEL = 'WARNING'
+LOGGING_LEVEL: Final[LoggingLevels] = 'WARNING'
 logger.setLevel(LOGGING_LEVEL)
 
 """

@@ -11,7 +11,7 @@ __all__ = [
 ]
 
 logging.Formatter.converter = time.gmtime
-LOG_FMT: Final[str] = '%(levelname)s:%(module)s - %(asctime)s - %(message)s'
+LOG_FMT: Final[str] = '%(module)s:%(levelname)s | %(asctime)s | %(message)s'
 LOG_DATE_FMT: Final[str] = '%Y-%m-%d %H:%M:%S +0000'
 logging.basicConfig(
     stream=sys.stdout,

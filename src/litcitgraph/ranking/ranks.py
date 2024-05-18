@@ -6,6 +6,8 @@ from typing import (
 import logging
 from pathlib import Path
 
+from tqdm.auto import tqdm
+from tqdm.contrib.logging import logging_redirect_tqdm
 import pandas as pd
 from pandas import DataFrame
 from thefuzz import process
@@ -181,7 +183,7 @@ class SJRGraphScorer:
             return False, None
         elif len(target_journals) == 1:
             self.num_title_fuzzy_matches += 1
-            logger.info(f"----------> ####### Fuzzy match found for {journal_title=}: {target_journals[0]}")
+            logger.info(f"Fuzzy match found for {journal_title=}: {target_journals[0]}")
             return True, target_journals[0]
         else:
             raise TooManyFuzzyMatchesError("More than one journal matched")
@@ -278,29 +280,30 @@ class SJRGraphScorer:
         self,
         graph: CitationGraph,
     ) -> CitationGraph:
-        # TODO check implementation
+        
         self.num_title_matches = 0
         self.num_issn_matches = 0
         self.num_title_matches = 0
         self.num_title_fuzzy_matches = 0
         
-        for node in graph.nodes:
-            node_props = cast(PaperProperties,
-                              graph.nodes[node])
-            issn_print = node_props['pub_issn_print']
-            issn_electronic = node_props['pub_issn_electronic']
-            journal_title = node_props['pub_name']
-            rank_score = self.match_rank(issn=issn_print, journal_title=journal_title)
-            # try electronic ISSN if no match found
-            if issn_electronic and rank_score is None:
-                rank_score = self.match_rank(issn=issn_electronic)
-            
-            if rank_score is not None:
-                node_props['rank_score'] = rank_score
-            else:
-                node_props['rank_score'] = 0
-                logger.info((f"No rank found for {node=}, {issn_print=}, "
-                                f"{issn_electronic=}, {journal_title=}"))
+        with logging_redirect_tqdm():
+            for node in tqdm(graph.nodes):
+                node_props = cast(PaperProperties,
+                                graph.nodes[node])
+                issn_print = node_props['pub_issn_print']
+                issn_electronic = node_props['pub_issn_electronic']
+                journal_title = node_props['pub_name']
+                rank_score = self.match_rank(issn=issn_print, journal_title=journal_title)
+                # try electronic ISSN if no match found
+                if issn_electronic and rank_score is None:
+                    rank_score = self.match_rank(issn=issn_electronic)
+                
+                if rank_score is not None:
+                    node_props['rank_score'] = rank_score
+                else:
+                    node_props['rank_score'] = 0
+                    logger.info((f"No rank found for {node=}, {issn_print=}, "
+                                    f"{issn_electronic=}, {journal_title=}"))
         
         num_papers = len(graph.nodes)
         self.scoring_rate = self.num_matches / num_papers

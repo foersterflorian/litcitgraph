@@ -308,4 +308,3 @@ class CitationGraph(DiGraph):
             logger.info("Building of citation graph completed.")
         else:
             logger.warning("Building of citation graph failed.")
-

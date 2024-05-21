@@ -57,7 +57,7 @@ cit_graph.build_from_ids(ids=id_data, use_doi=False, target_iter_depth=1)
 
 You can decide to only process a given batch size of the exported data with the `batch_size` parameter of the `read_scopus_from_csv` function. If this parameter is `None` all entries are processed.
 
-Now the citation graph is initialised with the given entries of the exported data. After that the build process for the first iteration starts since the `target_iter_depth` was set to `1`. You can also directly set a larger iteration depth. Depending on the size of the initial dataset an the reference count in each document you might run into quota limits.
+Now the citation graph is initialised with the given entries of the exported data. After that the build process for the first iteration starts since the `target_iter_depth` was set to `1`. You can also directly set a larger iteration depth. Depending on the size of the initial dataset and the reference count in each document you might run into quota limits.
 
 ### Query-based Search
 

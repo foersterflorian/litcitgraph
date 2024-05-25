@@ -1,7 +1,8 @@
-from typing import Any
 from collections.abc import Iterable, Iterator
+from typing import Any
 
 from litcitgraph.types import NestedIterable
+
 
 def flatten(
     x: NestedIterable,

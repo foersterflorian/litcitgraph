@@ -1,33 +1,33 @@
-from typing import (
-    cast,
-    Final,
-    Callable,
-    TypeVar, 
-    ParamSpec,
-)
-from collections.abc import Iterable, Iterator
-import logging
 import functools
+import logging
+from collections.abc import Iterable, Iterator
+from typing import (
+    Callable,
+    Final,
+    ParamSpec,
+    TypeVar,
+    cast,
+)
 
 from pybliometrics.scopus import AbstractRetrieval
 from pybliometrics.scopus.exception import Scopus404Error, Scopus429Error
 from tqdm.auto import tqdm
 
-from litcitgraph.types import (
-    LoggingLevels,
-    DocIdentifier,
-    PybliometricsIDTypes,
-    ScopusID,
-    EID,
-    DOI,
-    SourceTitle,
-    PaperInfo,
-    Reference,
-    PybliometricsReference,
-    PybliometricsAuthor,
-    PybliometricsISSN,
-)
 from litcitgraph.parsing import authors_to_str
+from litcitgraph.types import (
+    DOI,
+    EID,
+    DocIdentifier,
+    LoggingLevels,
+    PaperInfo,
+    PybliometricsAuthor,
+    PybliometricsIDTypes,
+    PybliometricsISSN,
+    PybliometricsReference,
+    Reference,
+    ScopusID,
+    SourceTitle,
+)
 
 T = TypeVar('T')
 P = ParamSpec('P')
@@ -36,40 +36,28 @@ logger = logging.getLogger('litcitgraph.requests')
 LOGGING_LEVEL: Final[LoggingLevels] = 'WARNING'
 logger.setLevel(LOGGING_LEVEL)
 
-"""
-def retry_scopus(
-    num_retries: int = 3,
-) -> Callable[[Callable[P, T]], Callable[P, T | None]]:
-    def wrapper(func: Callable[P, T]) -> Callable[P, T | None]:
-        @functools.wraps(func)
-        def wrapper_func(*args: P.args, **kwargs: P.kwargs) -> T | None:
-            for attempt in range(1, (num_retries+1)):
-                try:
-                    return func(*args, **kwargs)
-                except Scopus404Error:
-                    logger.info((f"Document not found. Attempt {attempt} of "
-                                 f"{num_retries}."))
-                    if attempt == num_retries:
-                        return None
-        return wrapper_func
-    return wrapper
-"""
 
 def retry_scopus(
     num_retries: int = 3,
 ) -> Callable[[Callable[P, T]], Callable[P, T | tuple[bool, PaperInfo | None]]]:
     def wrapper(func: Callable[P, T]) -> Callable[P, T | tuple[bool, PaperInfo | None]]:
         @functools.wraps(func)
-        def wrapper_func(*args: P.args, **kwargs: P.kwargs) -> T | tuple[bool, PaperInfo | None]:
-            for attempt in range(1, (num_retries+1)):
+        def wrapper_func(
+            *args: P.args, **kwargs: P.kwargs
+        ) -> T | tuple[bool, PaperInfo | None]:
+            for attempt in range(1, (num_retries + 1)):
                 try:
                     return func(*args, **kwargs)
                 except Scopus404Error:
-                    logger.info((f"Document not found. Attempt {attempt} of "
-                                 f"{num_retries}."))
+                    logger.info(
+                        (f'Document not found. Attempt {attempt} of ' f'{num_retries}.')
+                    )
             return False, None
+
         return wrapper_func
+
     return wrapper
+
 
 @retry_scopus(num_retries=2)
 def get_from_scopus(
@@ -81,18 +69,18 @@ def get_from_scopus(
     quota_exceeded: bool = False
     try:
         retrieval = AbstractRetrieval(
-            identifier=identifier, 
-            view=view, 
+            identifier=identifier,
+            view=view,
             id_type=id_type,
         )
     except Scopus404Error as e:
-        #logger.error(f"Error {e}: Document not found for {identifier=}.")
+        # logger.error(f"Error {e}: Document not found for {identifier=}.")
         raise e
     except Scopus429Error:
-        logger.error("Quota exceeded.")
+        logger.error('Quota exceeded.')
         quota_exceeded = True
         return quota_exceeded, None
-    
+
     title = retrieval.title
     authors = retrieval.authors
     year = int(retrieval.coverDate.split('-')[0])
@@ -110,28 +98,28 @@ def get_from_scopus(
         pub_issns = retrieval.issn
     except KeyError:
         pub_issns = None
-        logger.error(f"An error occurred for {identifier=} while retrieving ISSNs.")
-    
+        logger.error(f'An error occurred for {identifier=} while retrieving ISSNs.')
+
     if title is None:
-        logger.warning(f"{identifier=} not containing title.")
+        logger.warning(f'{identifier=} not containing title.')
         return quota_exceeded, None
-    
+
     if authors is None:
         authors = ''
     else:
         authors = cast(list[PybliometricsAuthor], authors)
         authors = authors_to_str(authors)
-    
+
     if references is not None:
         # obtain references in standardised format
         references = cast(list[PybliometricsReference], references)
         obtained_refs = obtain_ref_info(references)
     else:
         obtained_refs = None
-    
+
     if pub_name is not None:
         pub_name = cast(SourceTitle, pub_name)
-    
+
     if pub_issns is not None:
         pub_issns = cast(PybliometricsISSN, pub_issns)
         pub_issn_print = pub_issns.print
@@ -139,7 +127,7 @@ def get_from_scopus(
     else:
         pub_issn_print = None
         pub_issn_electronic = None
-    
+
     paper_info = PaperInfo(
         iter_depth=iter_depth,
         title=title,
@@ -154,7 +142,7 @@ def get_from_scopus(
         pub_issn_print=pub_issn_print,
         pub_issn_electronic=pub_issn_electronic,
     )
-    
+
     return quota_exceeded, paper_info
 
 
@@ -168,7 +156,7 @@ def obtain_ref_info(
             doi = ref.doi
             obtained_ref = Reference(scopus_id=scopus_id, doi=doi)
             obtained_refs.add(obtained_ref)
-    
+
     if obtained_refs:
         return frozenset(obtained_refs)
     else:
@@ -179,16 +167,15 @@ def get_refs_from_scopus(
     papers: frozenset[PaperInfo],
     iter_depth: int,
 ) -> Iterator[tuple[bool, PaperInfo, PaperInfo | None]]:
-    
     for parent in tqdm(papers, position=0, leave=True):
         if parent.refs is None:
             continue
-        
+
         for ref in tqdm(parent.refs, position=1, leave=False):
             quota_exceeded, child = get_from_scopus(
                 identifier=ref.scopus_id,
                 id_type='scopus_id',
                 iter_depth=iter_depth,
             )
-            
+
             yield quota_exceeded, parent, child

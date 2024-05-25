@@ -1,6 +1,6 @@
 [project]
 name = "litcitgraph"
-version = "0.1.0"
+dynamic = ["version"]
 description = "automatically build citation graphs for a given batch of literature extracted from scientific databases"
 authors = [
     {name = "Florian Förster", email = "florian.foerster@mb.tu-chemnitz.de"},
@@ -29,6 +29,7 @@ build-backend = "pdm.backend"
 
 [tool.pdm]
 distribution = true
+version = { source = "file", path = "src/litcitgraph/__init__.py" }
 
 [tool.pdm.dev-dependencies]
 example-tests = [
@@ -38,3 +39,18 @@ example-tests = [
 data-handling = [
     "pandas>=2.2.2",
 ]
+general = [
+    "ruff>=0.4.5",
+]
+
+[tool.ruff]
+line-length = 94
+indent-width = 4
+target-version = "py311"
+
+[tool.ruff.format]
+quote-style = "single"
+skip-magic-trailing-comma = false
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]

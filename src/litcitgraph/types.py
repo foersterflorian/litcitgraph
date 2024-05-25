@@ -1,16 +1,8 @@
 from __future__ import annotations
-from typing import (
-    cast,
-    TypeAlias,
-    NamedTuple,
-    NewType,
-    TypedDict,
-    NotRequired,
-    Literal,
-    Any
-)
+
 from collections.abc import Iterable
-from dataclasses import dataclass, asdict
+from dataclasses import asdict, dataclass
+from typing import Any, Literal, NamedTuple, NewType, NotRequired, TypeAlias, TypedDict, cast
 
 LoggingLevels: TypeAlias = Literal[
     'DEBUG',
@@ -30,7 +22,7 @@ PybliometricsIDTypes: TypeAlias = Literal[
     'pubmed_id',
     'doi',
 ]
-SourceTitle: TypeAlias = str # title of publication source (e.g. journal)
+SourceTitle: TypeAlias = str  # title of publication source (e.g. journal)
 ISSN: TypeAlias = str
 RankingScore = NewType('RankingScore', float)
 NestedIterable: TypeAlias = Iterable['Any | NestedIterable']
@@ -55,6 +47,7 @@ class PybliometricsAuthor(NamedTuple):
     given_name: str
     affiliation: str
 
+
 class PybliometricsReference(NamedTuple):
     position: str | None
     id: str | None
@@ -75,20 +68,23 @@ class PybliometricsReference(NamedTuple):
     text: str | None
     fulltext: str | None
 
+
 class PybliometricsISSN(NamedTuple):
     print: ISSN
     electronic: ISSN
 
-@dataclass(frozen=True, kw_only=True, slots=True)
+
+@dataclass(frozen=False, kw_only=True, slots=True)
 class Reference:
     scopus_id: ScopusID
     doi: str | None
-    
+
     def __key(self) -> ScopusID:
         return self.scopus_id
-    
+
     def __hash__(self) -> int:
         return hash(self.__key())
+
 
 class PaperProperties(TypedDict):
     iter_depth: int
@@ -105,7 +101,8 @@ class PaperProperties(TypedDict):
     pub_issn_electronic: ISSN | Literal['']
     rank_score: NotRequired[RankingScore | Literal[0]]
 
-@dataclass(frozen=True, kw_only=True, slots=True)
+
+@dataclass(frozen=False, kw_only=True, slots=True)
 class PaperInfo:
     iter_depth: int
     title: str
@@ -119,19 +116,19 @@ class PaperInfo:
     pub_name: SourceTitle | None
     pub_issn_print: ISSN | None
     pub_issn_electronic: ISSN | None
-    
+
     def __key(self) -> tuple[ScopusID, EID]:
         return (self.scopus_id, self.eid)
-    
+
     def __hash__(self) -> int:
         return hash(self.__key())
-    
+
     def graph_properties_as_dict(self) -> PaperProperties:
         prop_dict = cast(PaperProperties, asdict(self))
         _ = prop_dict.pop('refs', None)
-        
+
         for key, val in prop_dict.items():
             if val is None:
                 prop_dict[key] = ''
-        
+
         return prop_dict

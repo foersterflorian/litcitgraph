@@ -1,9 +1,11 @@
-from typing import Final
+import logging
 import sys
 import time
-import logging
-from pathlib import Path
 import tomllib
+from pathlib import Path
+from typing import Final
+
+__version__ = '0.1.0dev1'
 
 __all__ = [
     'GRPHSTRY_PERS_ID',

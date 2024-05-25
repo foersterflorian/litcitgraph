@@ -1,4 +1,5 @@
 import copy
+import datetime
 import logging
 import pickle
 from collections.abc import Iterator
@@ -60,6 +61,8 @@ class CitationGraph(DiGraph):
         self,
         path_interim: str | Path,
         name: str = 'CitationGraph',
+        backup: bool = True,
+        backup_interval: int = 1000,
         **kwargs,
     ) -> None:
         super().__init__(**kwargs)
@@ -78,6 +81,9 @@ class CitationGraph(DiGraph):
         self.parent_papers_iter: set[PaperInfo] = set()
         self.child_papers_iter: set[PaperInfo] = set()
         self.iteration_completed: bool = True
+
+        self.backup = backup
+        self.backup_interval = backup_interval
 
     def __repr__(self) -> str:
         return (
@@ -107,7 +113,7 @@ class CitationGraph(DiGraph):
     @staticmethod
     def prep_save(
         path: str | Path,
-        suffix: str = '.pickle',
+        suffix: str = '.pkl',
     ) -> Path:
         if isinstance(path, str):
             path = Path(path)
@@ -117,11 +123,13 @@ class CitationGraph(DiGraph):
     def save_pickle(
         self,
         path: str | Path,
+        log: bool = True,
     ) -> None:
         path = self.prep_save(path)
         with open(path, 'wb') as f:
             pickle.dump(self, f)
-        logger.info(f'Graph successfully saved to {path}.')
+        if log:
+            logger.info(f'Graph successfully saved to {path}.')
 
     @classmethod
     def load_pickle(
@@ -131,6 +139,13 @@ class CitationGraph(DiGraph):
         path = cls.prep_save(path)
         with open(path, 'rb') as f:
             return pickle.load(f)
+
+    def save_backup(self) -> None:
+        timestamp = datetime.datetime.now(tz=datetime.UTC).strftime(r'%Y%m%d_%H%M%S-%Z')
+        backup_name = f'{self._path_interim.stem}_backup_{timestamp}'
+        backup_path = self._path_interim.with_name(backup_name)
+        path = self.prep_save(backup_path)
+        self.save_pickle(path, log=False)
 
     def transform_graphistry(self) -> Self:
         export_graph = self.deepcopy()
@@ -249,6 +264,10 @@ class CitationGraph(DiGraph):
                 child_node=child.scopus_id,
                 child_node_props=child.graph_properties_as_dict(),
             )
+
+            if self.backup and (count % self.backup_interval == 0):
+                self.save_backup()
+
         # in case of interruption would not get called
         self.parent_papers_iter.remove(parent)
         self.iter_depth = target_iter_depth

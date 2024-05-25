@@ -10,6 +10,7 @@ datasets/
 dataset/
 input/
 output/
+/scripts
 
 # results are user- and data-specific
 results/

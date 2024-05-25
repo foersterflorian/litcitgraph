@@ -1,4 +1,5 @@
-[![pdm-managed](https://img.shields.io/badge/pdm-managed-blueviolet)](https://pdm-project.org) 
+[![pdm-managed](https://img.shields.io/badge/pdm-managed-blueviolet)](https://pdm-project.org)
+[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 
 # LitCitGraph
 
@@ -22,7 +23,7 @@ This package uses [pybliometrics](https://github.com/pybliometrics-dev/pybliomet
 
 ### Text-based Search
 
-The text-based search utilises an search query exported directly from Scopus. Therefore you can simply build your desired search query string and search through Scopus as you would normally do. To export the found results mark them all via the drop-drown menu `All` next to the check box and choose `Select all`. Then, click on `Export` and choose `CSV` as file format. A pop-up windows will appear, in which you can select the properties to be exported. We only need `EID` and `DOI` as unique identifiers. The other properties could be obtained through the corresponding request at a later stage. Save the exported CSV file in a location you have access to without problems. A path relative to your script is recommended.
+The text-based search utilises a search query exported directly from Scopus. Therefore you can simply build your desired search query string and search through Scopus as you would normally do. To export the found results mark them all via the drop-drown menu `All` next to the check box and choose `Select all`. Then, click on `Export` and choose `CSV` as file format. A pop-up windows will appear, in which you can select the properties to be exported. We only need `EID` and `DOI` as unique identifiers. The other properties could be obtained through the corresponding request at a later stage. Save the exported CSV file in a location you have access to without problems. A path relative to your script is recommended.
 
 Now we are able to build our first citation graph.
 

@@ -74,7 +74,7 @@ class PybliometricsISSN(NamedTuple):
     electronic: ISSN
 
 
-@dataclass(frozen=False, kw_only=True, slots=True)
+@dataclass(frozen=True, kw_only=True, slots=True)
 class Reference:
     scopus_id: ScopusID
     doi: str | None
@@ -102,7 +102,7 @@ class PaperProperties(TypedDict):
     rank_score: NotRequired[RankingScore | Literal[0]]
 
 
-@dataclass(frozen=False, kw_only=True, slots=True)
+@dataclass(frozen=True, kw_only=True, slots=True)
 class PaperInfo:
     iter_depth: int
     title: str

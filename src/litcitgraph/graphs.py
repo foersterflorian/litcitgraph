@@ -1,27 +1,26 @@
 import copy
 import datetime
-import logging
 import pickle
 from collections.abc import Iterator
 from pathlib import Path
-from typing import Final, Self
+from typing import Self
 
 from networkx import DiGraph
 
+from litcitgraph.loggers import graphs as logger
 from litcitgraph.requests import get_from_scopus, get_refs_from_scopus
 from litcitgraph.types import (
     DOI,
     EID,
-    LoggingLevels,
     PaperInfo,
     PaperProperties,
     PybliometricsIDTypes,
     ScopusID,
 )
 
-logger = logging.getLogger('litcitgraph.graphs')
-LOGGING_LEVEL: Final[LoggingLevels] = 'INFO'
-logger.setLevel(LOGGING_LEVEL)
+# logger = logging.getLogger('litcitgraph.graphs')
+# LOGGING_LEVEL: Final[LoggingLevels] = 'INFO'
+# logger.setLevel(LOGGING_LEVEL)
 
 
 def add_cit_graph_node(

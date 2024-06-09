@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import logging
 from pathlib import Path
 from typing import (
     Final,
@@ -15,11 +14,11 @@ from tqdm.contrib.logging import logging_redirect_tqdm
 
 from litcitgraph.errors import TooManyFuzzyMatchesError
 from litcitgraph.graphs import CitationGraph
+from litcitgraph.loggers import ranks as logger
 from litcitgraph.ranking.common import flatten
 from litcitgraph.types import (
     ISSN,
     FuzzyMatches,
-    LoggingLevels,
     PaperProperties,
     RankingScore,
     RankPropertiesSJR,
@@ -32,9 +31,9 @@ SOURCE_TYPE: Final[str] = 'journal'
 TARGET_SCORE: Final[str] = 'SJR'
 SCORE_MULTIPLIER: Final[int] = 1000
 
-logger = logging.getLogger('litcitgraph.ranking.ranks')
-LOGGING_LEVEL: Final[LoggingLevels] = 'INFO'
-logger.setLevel(LOGGING_LEVEL)
+# logger = logging.getLogger('litcitgraph.ranking.ranks')
+# LOGGING_LEVEL: Final[LoggingLevels] = 'INFO'
+# logger.setLevel(LOGGING_LEVEL)
 
 
 def read_SJR_ranking_data(

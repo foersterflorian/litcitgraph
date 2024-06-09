@@ -1,20 +1,19 @@
 import csv
-import logging
 from collections.abc import Iterable, Iterator
 from pathlib import Path
-from typing import Final, Literal, overload
+from typing import Literal, overload
 
+from litcitgraph.loggers import parsing as logger
 from litcitgraph.types import (
     DOI,
     EID,
-    LoggingLevels,
     PybliometricsAuthor,
 )
 
 # **logging
-logger = logging.getLogger('litcitgraph.parsing')
-LOGGING_LEVEL: Final[LoggingLevels] = 'INFO'
-logger.setLevel(LOGGING_LEVEL)
+# logger = logging.getLogger('litcitgraph.parsing')
+# LOGGING_LEVEL: Final[LoggingLevels] = 'INFO'
+# logger.setLevel(LOGGING_LEVEL)
 
 
 @overload

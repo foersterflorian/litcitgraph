@@ -1,9 +1,7 @@
 import functools
-import logging
 from collections.abc import Iterable, Iterator
 from typing import (
     Callable,
-    Final,
     ParamSpec,
     TypeVar,
     cast,
@@ -13,12 +11,12 @@ from pybliometrics.scopus import AbstractRetrieval
 from pybliometrics.scopus.exception import Scopus404Error, Scopus429Error
 from tqdm.auto import tqdm
 
+from litcitgraph.loggers import requests as logger
 from litcitgraph.parsing import authors_to_str
 from litcitgraph.types import (
     DOI,
     EID,
     DocIdentifier,
-    LoggingLevels,
     PaperInfo,
     PybliometricsAuthor,
     PybliometricsIDTypes,
@@ -32,9 +30,9 @@ from litcitgraph.types import (
 T = TypeVar('T')
 P = ParamSpec('P')
 
-logger = logging.getLogger('litcitgraph.requests')
-LOGGING_LEVEL: Final[LoggingLevels] = 'WARNING'
-logger.setLevel(LOGGING_LEVEL)
+# logger = logging.getLogger('litcitgraph.requests')
+# LOGGING_LEVEL: Final[LoggingLevels] = 'WARNING'
+# logger.setLevel(LOGGING_LEVEL)
 
 
 def retry_scopus(

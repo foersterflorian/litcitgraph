@@ -1,9 +1,20 @@
 from __future__ import annotations
 
+import enum
 from collections.abc import Iterable
 from dataclasses import asdict, dataclass
 from typing import Any, Literal, NamedTuple, NewType, NotRequired, TypeAlias, TypedDict, cast
 
+
+class LoggingLevels(enum.IntEnum):
+    DEBUG = 10
+    INFO = 20
+    WARNING = 30
+    ERROR = 40
+    CRITICAL = 50
+
+
+"""
 LoggingLevels: TypeAlias = Literal[
     'DEBUG',
     'INFO',
@@ -11,6 +22,8 @@ LoggingLevels: TypeAlias = Literal[
     'ERROR',
     'CRITICAL',
 ]
+"""
+
 ScopusID = NewType('ScopusID', int)
 DOI = NewType('DOI', str)
 EID = NewType('EID', str)

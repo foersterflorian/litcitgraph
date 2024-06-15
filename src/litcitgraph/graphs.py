@@ -1,6 +1,7 @@
 import copy
 import datetime
 import pickle
+import sys
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Self
@@ -17,10 +18,6 @@ from litcitgraph.types import (
     PybliometricsIDTypes,
     ScopusID,
 )
-
-# logger = logging.getLogger('litcitgraph.graphs')
-# LOGGING_LEVEL: Final[LoggingLevels] = 'INFO'
-# logger.setLevel(LOGGING_LEVEL)
 
 
 def add_cit_graph_node(
@@ -180,40 +177,49 @@ class CitationGraph(DiGraph):
             initialised citation graph and dictionary with paper
             information by iteration depth
         """
+        success: bool = False
         self.use_doi = use_doi
         papers_init: set[PaperInfo] = set()
 
         id_type: PybliometricsIDTypes = 'doi' if use_doi else 'eid'
 
-        for identifier in ids:
-            # obtain information from Scopus
-            quota_exceeded, paper_info = get_from_scopus(
-                identifier=identifier,
-                id_type=id_type,
-                iter_depth=self.iter_depth,
-            )
-            if quota_exceeded:
-                self._quota_exceeded()
-                return False
+        try:
+            for identifier in ids:
+                # obtain information from Scopus
+                quota_exceeded, paper_info = get_from_scopus(
+                    identifier=identifier,
+                    id_type=id_type,
+                    iter_depth=self.iter_depth,
+                )
 
-            self.retrievals_total += 1
-            if paper_info is None:
-                self.retrievals_failed += 1
-                continue
+                if quota_exceeded:
+                    self._quota_exceeded()
+                    return False
 
-            node_id = paper_info.scopus_id  # ScopusID as node identifier
-            node_props = paper_info.graph_properties_as_dict()
-            add_cit_graph_node(self, node_id, node_props)
+                self.retrievals_total += 1
+                if paper_info is None:
+                    self.retrievals_failed += 1
+                    continue
 
-            if paper_info not in papers_init:
-                # verbose because duplicates should not occur as each
-                # paper is unique in the database output
-                # only kept to be consistent with the other methods
-                papers_init.add(paper_info)
+                node_id = paper_info.scopus_id  # ScopusID as node identifier
+                node_props = paper_info.graph_properties_as_dict()
+                add_cit_graph_node(self, node_id, node_props)
 
-        self.papers_by_iter_depth[self.iter_depth] = frozenset(papers_init)
+                if paper_info not in papers_init:
+                    # verbose because duplicates should not occur as each
+                    # paper is unique in the database output
+                    # only kept to be consistent with the other methods
+                    papers_init.add(paper_info)
 
-        return True
+            self.papers_by_iter_depth[self.iter_depth] = frozenset(papers_init)
+        except KeyboardInterrupt:
+            logger.warning('Process interrupted by user.')
+            logger.info('Saving current state...')
+            self.save_pickle(self.path_interim)
+            sys.exit(130)
+        else:
+            success = True
+            return success
 
     def _iterate_full(self) -> bool:
         target_papers = self.papers_by_iter_depth[self.iter_depth]
@@ -279,23 +285,30 @@ class CitationGraph(DiGraph):
         self,
         target_iter_depth: int,
     ) -> bool:
-        for it in range(self.iter_depth, target_iter_depth):
-            logger.info(f'Starting iteration {it+1}...')
-            if self.iteration_completed:
-                success = self._iterate_full()
-            else:
-                logger.info(
-                    (f'Iteration {it+1} was partially ' 'completed before. Resume...')
-                )
-                success = self._iterate_partial()
+        success: bool = False
+        try:
+            for it in range(self.iter_depth, target_iter_depth):
+                logger.info('Starting iteration %d...', (it + 1))
+                if self.iteration_completed:
+                    success = self._iterate_full()
+                else:
+                    logger.info(
+                        'Iteration %d was partially completed before. Resume...', (it + 1)
+                    )
+                    success = self._iterate_partial()
 
-            if not success:
-                logger.warning(f'Iteration {it+1} failed. Aborted.')
-                break
-            else:
-                logger.info(f'Iteration {it+1} successfully completed.')
-
-        return success
+                if not success:
+                    logger.warning('Iteration %d failed. Aborted.', (it + 1))
+                    break
+                else:
+                    logger.info('Iteration %d successfully completed.', (it + 1))
+        except KeyboardInterrupt:
+            logger.warning('Process interrupted by user.')
+            logger.info('Saving current state...')
+            self.save_pickle(self.path_interim)
+            sys.exit(130)
+        else:
+            return success
 
     def build_from_ids(
         self,

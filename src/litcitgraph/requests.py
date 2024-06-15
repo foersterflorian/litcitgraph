@@ -9,7 +9,10 @@ from typing import (
 
 from pybliometrics.scopus import AbstractRetrieval
 from pybliometrics.scopus.exception import Scopus404Error, Scopus429Error
+from requests.exceptions import ChunkedEncodingError
 from tqdm.auto import tqdm
+from tqdm.contrib.logging import logging_redirect_tqdm
+from urllib3.exceptions import ProtocolError
 
 from litcitgraph.loggers import requests as logger
 from litcitgraph.parsing import authors_to_str
@@ -77,6 +80,9 @@ def get_from_scopus(
     except Scopus429Error:
         logger.error('Quota exceeded.')
         quota_exceeded = True
+        return quota_exceeded, None
+    except (ChunkedEncodingError, ProtocolError) as error:
+        logger.error('Error during request. Continue. Error was: %s', error)
         return quota_exceeded, None
 
     title = retrieval.title
@@ -165,15 +171,16 @@ def get_refs_from_scopus(
     papers: frozenset[PaperInfo],
     iter_depth: int,
 ) -> Iterator[tuple[bool, PaperInfo, PaperInfo | None]]:
-    for parent in tqdm(papers, position=0, leave=True):
-        if parent.refs is None:
-            continue
+    with logging_redirect_tqdm():
+        for parent in tqdm(papers, position=0, leave=True):
+            if parent.refs is None:
+                continue
 
-        for ref in tqdm(parent.refs, position=1, leave=False):
-            quota_exceeded, child = get_from_scopus(
-                identifier=ref.scopus_id,
-                id_type='scopus_id',
-                iter_depth=iter_depth,
-            )
+            for ref in tqdm(parent.refs, position=1, leave=False):
+                quota_exceeded, child = get_from_scopus(
+                    identifier=ref.scopus_id,
+                    id_type='scopus_id',
+                    iter_depth=iter_depth,
+                )
 
-            yield quota_exceeded, parent, child
+                yield quota_exceeded, parent, child

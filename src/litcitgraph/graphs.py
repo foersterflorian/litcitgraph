@@ -217,6 +217,11 @@ class CitationGraph(DiGraph):
             logger.info('Saving current state...')
             self.save_pickle(self.path_interim)
             sys.exit(130)
+        except Exception as error:
+            logger.error('Unknown exception raised.')
+            logger.info('Saving current state...')
+            self.save_pickle(self.path_interim)
+            raise error
         else:
             success = True
             return success
@@ -307,6 +312,11 @@ class CitationGraph(DiGraph):
             logger.info('Saving current state...')
             self.save_pickle(self.path_interim)
             sys.exit(130)
+        except Exception as error:
+            logger.error('Unknown exception raised.')
+            logger.info('Saving current state...')
+            self.save_pickle(self.path_interim)
+            raise error
         else:
             return success
 
@@ -319,9 +329,7 @@ class CitationGraph(DiGraph):
         if target_iter_depth < 0:
             raise ValueError('Target depth must be non-negative!')
         elif target_iter_depth == 0:
-            logger.warning(
-                ('Target depth is 0, only initialising with ' 'given document IDs.')
-            )
+            logger.warning('Target depth is 0, only initialising with given document IDs.')
 
         success: bool
         logger.info('Building citation graph...')

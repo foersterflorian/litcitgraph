@@ -2,17 +2,16 @@ import copy
 import datetime
 import pickle
 import sys
-from collections.abc import Iterator
+from collections.abc import Iterable
 from pathlib import Path
 from typing import Self
 
 from networkx import DiGraph
 
 from litcitgraph.loggers import graphs as logger
-from litcitgraph.requests import get_from_scopus, get_refs_from_scopus
+from litcitgraph.requests import get_scopus_abstract_retrieval, get_scopus_refs
 from litcitgraph.types import (
-    DOI,
-    EID,
+    DocIdentifier,
     PaperInfo,
     PaperProperties,
     PybliometricsIDTypes,
@@ -68,7 +67,6 @@ class CitationGraph(DiGraph):
         self._path_interim = path_interim
 
         self._name: str = name
-        self.use_doi: bool
         self.iter_depth: int = 0
         self.papers_by_iter_depth: dict[int, frozenset[PaperInfo]] = {}
         self.retrievals_total: int = 0
@@ -146,11 +144,9 @@ class CitationGraph(DiGraph):
     def transform_graphistry(self) -> Self:
         export_graph = self.deepcopy()
         for node in export_graph.nodes:
-            # Graphistry does not properly
-            # handle large integer
+            # Graphistry does not properly handle large integers
             export_graph.nodes[node]['scopus_id'] = str(export_graph.nodes[node]['scopus_id'])
-            # Graphistry drops attribute with key 'title'
-            # so rename to 'paper_title'
+            # Graphistry drops attribute with key 'title', so rename to 'paper_title'
             export_graph.nodes[node]['paper_title'] = export_graph.nodes[node]['title']
             _ = export_graph.nodes[node].pop('title', None)
 
@@ -158,35 +154,37 @@ class CitationGraph(DiGraph):
 
     def _initialise(
         self,
-        ids: Iterator[DOI | EID],
-        use_doi: bool,
+        ids: Iterable[DocIdentifier],
+        id_type: PybliometricsIDTypes,
     ) -> bool:
-        """initialise citation graph with data from search query to retain
-        papers which do not have any reference data
+        """initialise citation graph with data from search query
 
         Parameters
         ----------
-        ids : Iterator[DOI | EID]
+        ids : Iterable[DocIdentifier]
             IDs for lookup in Scopus database
-        use_doi : bool
-            indicator for ID type, if True DOI is used, if False EID is used
+        id_type : PybliometricsIDTypes
+            used ID type supported by Pybliometrics and Scopus
 
         Returns
         -------
-        tuple[DiGraph, dict[IterDepth, frozenset[PaperInfo]]]
-            initialised citation graph and dictionary with paper
-            information by iteration depth
+        bool
+            indicator for successful operation
+
+        Raises
+        ------
+        error
+            any error occurring during retrieval processes
         """
         success: bool = False
-        self.use_doi = use_doi
         papers_init: set[PaperInfo] = set()
 
-        id_type: PybliometricsIDTypes = 'doi' if use_doi else 'eid'
+        # id_type: PybliometricsIDTypes = 'doi' if use_doi else 'eid'
 
         try:
             for identifier in ids:
                 # obtain information from Scopus
-                quota_exceeded, paper_info = get_from_scopus(
+                quota_exceeded, paper_info = get_scopus_abstract_retrieval(
                     identifier=identifier,
                     id_type=id_type,
                     iter_depth=self.iter_depth,
@@ -245,7 +243,7 @@ class CitationGraph(DiGraph):
         target_iter_depth = self.iter_depth + 1
         parent_paper_current: PaperInfo | None = None
 
-        references = get_refs_from_scopus(target_papers, target_iter_depth)
+        references = get_scopus_refs(target_papers, target_iter_depth)
 
         for count, (quota_exceeded, parent, child) in enumerate(references):
             if quota_exceeded:
@@ -262,7 +260,7 @@ class CitationGraph(DiGraph):
                 self.retrievals_failed += 1
                 continue
 
-            if child not in self.child_papers_iter and child.scopus_id not in self.nodes:
+            if (child not in self.child_papers_iter) and (child.scopus_id not in self.nodes):
                 # check if paper already in current iteration
                 # or prior ones (already added to graph)
                 self.child_papers_iter.add(child)
@@ -290,6 +288,23 @@ class CitationGraph(DiGraph):
         self,
         target_iter_depth: int,
     ) -> bool:
+        """resume started build process of the citation graph
+
+        Parameters
+        ----------
+        target_iter_depth : int
+            iteration depth at which the scraping should be stopped
+
+        Returns
+        -------
+        bool
+            indicator for successful operation
+
+        Raises
+        ------
+        error
+            any error occurring during retrieval processes
+        """
         success: bool = False
         try:
             for it in range(self.iter_depth, target_iter_depth):
@@ -318,12 +333,16 @@ class CitationGraph(DiGraph):
             self.save_pickle(self.path_interim)
             raise error
         else:
+            logger.info('Build process successful')
+            logger.info('Saving current state...')
+            self.save_pickle(self.path_interim)
+            logger.info('Current state saved successfully.')
             return success
 
     def build_from_ids(
         self,
-        ids: Iterator[DOI | EID],
-        use_doi: bool,
+        ids: Iterable[DocIdentifier],
+        id_type: PybliometricsIDTypes,
         target_iter_depth: int,
     ) -> None:
         if target_iter_depth < 0:
@@ -333,18 +352,17 @@ class CitationGraph(DiGraph):
 
         success: bool
         logger.info('Building citation graph...')
-        logger.info((f'...target depth: {target_iter_depth}, ' f'using DOI: {use_doi}...'))
+        logger.info(
+            '...target depth: %d, using ID type: >>%s<<...', target_iter_depth, id_type
+        )
 
         logger.info('Initialising graph with given IDs...')
-        success = self._initialise(ids=ids, use_doi=use_doi)
+        success = self._initialise(ids=ids, id_type=id_type)
         if success:
             logger.info('Initialisation completed.')
         else:
             logger.warning('Initialisation failed.')
             return None
 
+        # now build upon initialisation state and resume build process, saving done there
         success = self.resume_build_process(target_iter_depth)
-        if success:
-            logger.info('Building of citation graph completed.')
-        else:
-            logger.warning('Building of citation graph failed.')

@@ -13,7 +13,7 @@ __all__ = [
 ]
 
 logging.Formatter.converter = time.gmtime
-LOG_FMT: Final[str] = '%(asctime)s | %(module)s:%(levelname)s | %(message)s'
+LOG_FMT: Final[str] = '%(asctime)s | litcitgraph:%(module)s:%(levelname)s | %(message)s'
 LOG_DATE_FMT: Final[str] = '%Y-%m-%d %H:%M:%S +0000'
 logging.basicConfig(
     stream=sys.stdout,

@@ -14,26 +14,35 @@ class LoggingLevels(enum.IntEnum):
     CRITICAL = 50
 
 
-"""
-LoggingLevels: TypeAlias = Literal[
-    'DEBUG',
-    'INFO',
-    'WARNING',
-    'ERROR',
-    'CRITICAL',
-]
-"""
-
 ScopusID = NewType('ScopusID', int)
-DOI = NewType('DOI', str)
-EID = NewType('EID', str)
-DocIdentifier: TypeAlias = ScopusID | DOI | EID
+DOI: TypeAlias = str
+EID: TypeAlias = str
+PubmedID: TypeAlias = int
+PublisherItemIdentifier: TypeAlias = str
+DocIdentifier: TypeAlias = ScopusID | DOI | EID | PubmedID | PublisherItemIdentifier
 PybliometricsIDTypes: TypeAlias = Literal[
+    'doi',
     'eid',
     'pii',
-    'scopus_id',
     'pubmed_id',
+    'scopus_id',
+]
+ScopusAbstractRetrievalViews: TypeAlias = Literal[
+    'BASIC',
+    'META',
+    'META_ABS',
+    'REF',
+    'FULL',
+]
+ScopusSearchViews: TypeAlias = Literal[
+    'STANDARD',
+    'COMPLETE',
+]
+ScopusSearchIntegrityProperties: TypeAlias = Literal[
     'doi',
+    'eid',
+    'pii',
+    'pubmed_id',
 ]
 SourceTitle: TypeAlias = str  # title of publication source (e.g. journal)
 ISSN: TypeAlias = str

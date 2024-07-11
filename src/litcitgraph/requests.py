@@ -7,7 +7,7 @@ from typing import (
     cast,
 )
 
-from pybliometrics.scopus import AbstractRetrieval
+from pybliometrics.scopus import AbstractRetrieval, ScopusSearch
 from pybliometrics.scopus.exception import Scopus404Error, Scopus429Error
 from requests.exceptions import ChunkedEncodingError
 from tqdm.auto import tqdm
@@ -26,16 +26,61 @@ from litcitgraph.types import (
     PybliometricsISSN,
     PybliometricsReference,
     Reference,
+    ScopusAbstractRetrievalViews,
     ScopusID,
+    ScopusSearchIntegrityProperties,
+    ScopusSearchViews,
     SourceTitle,
 )
 
 T = TypeVar('T')
 P = ParamSpec('P')
 
-# logger = logging.getLogger('litcitgraph.requests')
-# LOGGING_LEVEL: Final[LoggingLevels] = 'WARNING'
-# logger.setLevel(LOGGING_LEVEL)
+
+def query_search_scopus(
+    query: str,
+    view: ScopusSearchViews = 'COMPLETE',
+    integrity_check: bool = True,
+) -> tuple[EID, ...]:
+    """using advanced Scopus search query to retrieve a tuple of all associated
+    EIDs of the given query
+    By default the integrity check is enabled which verifies that each retrieved
+    document contains an EID to ensure that all entries can be used for further
+    processing. This check can be disabled. In this case, please verify the
+    consistency of the data on your own if you want to do any postprocessing.
+
+    Parameters
+    ----------
+    query : str
+        Scopus search query which could also be used via the web interface
+    view : ScopusSearchViews, optional
+        view supported by Scopus, corresponding to the Scopus API documentation,
+        by default 'COMPLETE'
+    integrity_check : bool, optional
+        whether an integrity check regarding the EIDs should be performed or not,
+        by default True
+
+    Returns
+    -------
+    tuple[EID, ...]
+        collection of all EIDs which were found in the search query
+    """
+    integrity_properties: tuple[ScopusSearchIntegrityProperties, ...] = tuple()
+    if integrity_check:
+        integrity_properties = ('eid',)
+
+    search_result = ScopusSearch(
+        query,
+        view=view,
+        subscriber=True,
+        integrity_fields=integrity_properties,
+        integrity_action='raise',
+    )
+    collection_eids = cast(list[EID], search_result.get_eids())
+
+    logger.info('Retrieval successful. Total documents found: %d', len(collection_eids))
+
+    return tuple(collection_eids)
 
 
 def retry_scopus(
@@ -50,7 +95,7 @@ def retry_scopus(
                 try:
                     return func(*args, **kwargs)
                 except Scopus404Error:
-                    logger.info(
+                    logger.debug(
                         (f'Document not found. Attempt {attempt} of ' f'{num_retries}.')
                     )
             return False, None
@@ -61,12 +106,38 @@ def retry_scopus(
 
 
 @retry_scopus(num_retries=2)
-def get_from_scopus(
+def get_scopus_abstract_retrieval(
     identifier: str | DocIdentifier,
     id_type: PybliometricsIDTypes,
     iter_depth: int,
-    view: str = 'FULL',
+    view: ScopusAbstractRetrievalViews = 'FULL',
 ) -> tuple[bool, PaperInfo | None]:
+    """default function to use Scopus' Abstract Retrieval API using Pybliometrics,
+    parses data in data structures utilised by litcitgraph for further processing
+
+    Parameters
+    ----------
+    identifier : str | DocIdentifier
+        ID for lookup in Scopus database, can be strings or integers depending on the ID type
+    id_type : PybliometricsIDTypes
+        used ID type supported by Pybliometrics and Scopus
+    iter_depth : int
+        current iteration depth during build process of the citation graph
+    view : ScopusAbstractRetrievalViews, optional
+        view supported by Scopus, corresponding to the Scopus API documentation,
+        by default 'FULL'
+
+    Returns
+    -------
+    tuple[bool, PaperInfo | None]
+        indicator for successful operation AND
+        `PaperInfo` dataclass if retrieval was successful, `None` otherwise
+
+    Raises
+    ------
+    e
+        _description_
+    """
     quota_exceeded: bool = False
     try:
         retrieval = AbstractRetrieval(
@@ -167,7 +238,7 @@ def obtain_ref_info(
         return None
 
 
-def get_refs_from_scopus(
+def get_scopus_refs(
     papers: frozenset[PaperInfo],
     iter_depth: int,
 ) -> Iterator[tuple[bool, PaperInfo, PaperInfo | None]]:
@@ -177,7 +248,7 @@ def get_refs_from_scopus(
                 continue
 
             for ref in tqdm(parent.refs, position=1, leave=False):
-                quota_exceeded, child = get_from_scopus(
+                quota_exceeded, child = get_scopus_abstract_retrieval(
                     identifier=ref.scopus_id,
                     id_type='scopus_id',
                     iter_depth=iter_depth,

@@ -1,96 +1,161 @@
-from typing import (
-    cast,
-    Callable,
-    TypeVar, 
-    ParamSpec,
-)
-from collections.abc import Iterable, Iterator
-import logging
 import functools
-
-from pybliometrics.scopus import AbstractRetrieval
-from pybliometrics.scopus.exception import Scopus404Error, Scopus429Error
-from tqdm.auto import tqdm
-
-from litcitgraph.types import (
-    DocIdentifier,
-    PybliometricsIDTypes,
-    ScopusID,
-    EID,
-    DOI,
-    SourceTitle,
-    PaperInfo,
-    Reference,
-    PybliometricsReference,
-    PybliometricsAuthor,
-    PybliometricsISSN,
+from collections.abc import Iterable, Iterator
+from typing import (
+    Callable,
+    ParamSpec,
+    TypeVar,
+    cast,
 )
+
+from pybliometrics.scopus import AbstractRetrieval, ScopusSearch
+from pybliometrics.scopus.exception import Scopus404Error, Scopus429Error
+from requests.exceptions import ChunkedEncodingError
+from tqdm.auto import tqdm
+from tqdm.contrib.logging import logging_redirect_tqdm
+from urllib3.exceptions import ProtocolError
+
+from litcitgraph.loggers import requests as logger
 from litcitgraph.parsing import authors_to_str
+from litcitgraph.types import (
+    DOI,
+    EID,
+    DocIdentifier,
+    PaperInfo,
+    PybliometricsAuthor,
+    PybliometricsIDTypes,
+    PybliometricsISSN,
+    PybliometricsReference,
+    Reference,
+    ScopusAbstractRetrievalViews,
+    ScopusID,
+    ScopusSearchIntegrityProperties,
+    ScopusSearchViews,
+    SourceTitle,
+)
 
 T = TypeVar('T')
 P = ParamSpec('P')
 
-logger = logging.getLogger('litcitgraph.requests')
-LOGGING_LEVEL = 'WARNING'
-logger.setLevel(LOGGING_LEVEL)
 
-"""
-def retry_scopus(
-    num_retries: int = 3,
-) -> Callable[[Callable[P, T]], Callable[P, T | None]]:
-    def wrapper(func: Callable[P, T]) -> Callable[P, T | None]:
-        @functools.wraps(func)
-        def wrapper_func(*args: P.args, **kwargs: P.kwargs) -> T | None:
-            for attempt in range(1, (num_retries+1)):
-                try:
-                    return func(*args, **kwargs)
-                except Scopus404Error:
-                    logger.info((f"Document not found. Attempt {attempt} of "
-                                 f"{num_retries}."))
-                    if attempt == num_retries:
-                        return None
-        return wrapper_func
-    return wrapper
-"""
+def query_search_scopus(
+    query: str,
+    view: ScopusSearchViews = 'COMPLETE',
+    integrity_check: bool = True,
+) -> tuple[EID, ...]:
+    """using advanced Scopus search query to retrieve a tuple of all associated
+    EIDs of the given query
+    By default the integrity check is enabled which verifies that each retrieved
+    document contains an EID to ensure that all entries can be used for further
+    processing. This check can be disabled. In this case, please verify the
+    consistency of the data on your own if you want to do any postprocessing.
+
+    Parameters
+    ----------
+    query : str
+        Scopus search query which could also be used via the web interface
+    view : ScopusSearchViews, optional
+        view supported by Scopus, corresponding to the Scopus API documentation,
+        by default 'COMPLETE'
+    integrity_check : bool, optional
+        whether an integrity check regarding the EIDs should be performed or not,
+        by default True
+
+    Returns
+    -------
+    tuple[EID, ...]
+        collection of all EIDs which were found in the search query
+    """
+    integrity_properties: tuple[ScopusSearchIntegrityProperties, ...] = tuple()
+    if integrity_check:
+        integrity_properties = ('eid',)
+
+    search_result = ScopusSearch(
+        query,
+        view=view,
+        subscriber=True,
+        integrity_fields=integrity_properties,
+        integrity_action='raise',
+    )
+    collection_eids = cast(list[EID], search_result.get_eids())
+
+    logger.info('Retrieval successful. Total documents found: %d', len(collection_eids))
+
+    return tuple(collection_eids)
+
 
 def retry_scopus(
     num_retries: int = 3,
 ) -> Callable[[Callable[P, T]], Callable[P, T | tuple[bool, PaperInfo | None]]]:
     def wrapper(func: Callable[P, T]) -> Callable[P, T | tuple[bool, PaperInfo | None]]:
         @functools.wraps(func)
-        def wrapper_func(*args: P.args, **kwargs: P.kwargs) -> T | tuple[bool, PaperInfo | None]:
-            for attempt in range(1, (num_retries+1)):
+        def wrapper_func(
+            *args: P.args, **kwargs: P.kwargs
+        ) -> T | tuple[bool, PaperInfo | None]:
+            for attempt in range(1, (num_retries + 1)):
                 try:
                     return func(*args, **kwargs)
                 except Scopus404Error:
-                    logger.info((f"Document not found. Attempt {attempt} of "
-                                 f"{num_retries}."))
+                    logger.debug(
+                        (f'Document not found. Attempt {attempt} of ' f'{num_retries}.')
+                    )
             return False, None
+
         return wrapper_func
+
     return wrapper
 
+
 @retry_scopus(num_retries=2)
-def get_from_scopus(
+def get_scopus_abstract_retrieval(
     identifier: str | DocIdentifier,
     id_type: PybliometricsIDTypes,
     iter_depth: int,
-    view: str = 'FULL',
+    view: ScopusAbstractRetrievalViews = 'FULL',
 ) -> tuple[bool, PaperInfo | None]:
+    """default function to use Scopus' Abstract Retrieval API using Pybliometrics,
+    parses data in data structures utilised by litcitgraph for further processing
+
+    Parameters
+    ----------
+    identifier : str | DocIdentifier
+        ID for lookup in Scopus database, can be strings or integers depending on the ID type
+    id_type : PybliometricsIDTypes
+        used ID type supported by Pybliometrics and Scopus
+    iter_depth : int
+        current iteration depth during build process of the citation graph
+    view : ScopusAbstractRetrievalViews, optional
+        view supported by Scopus, corresponding to the Scopus API documentation,
+        by default 'FULL'
+
+    Returns
+    -------
+    tuple[bool, PaperInfo | None]
+        indicator for successful operation AND
+        `PaperInfo` dataclass if retrieval was successful, `None` otherwise
+
+    Raises
+    ------
+    e
+        _description_
+    """
     quota_exceeded: bool = False
     try:
         retrieval = AbstractRetrieval(
-            identifier=identifier, 
-            view=view, 
+            identifier=identifier,
+            view=view,
             id_type=id_type,
         )
     except Scopus404Error as e:
-        #logger.error(f"Error {e}: Document not found for {identifier=}.")
+        # logger.error(f"Error {e}: Document not found for {identifier=}.")
         raise e
     except Scopus429Error:
-        logger.error("Quota exceeded.")
+        logger.error('Quota exceeded.')
         quota_exceeded = True
         return quota_exceeded, None
-    
+    except (ChunkedEncodingError, ProtocolError) as error:
+        logger.error('Error during request. Continue. Error was: %s', error)
+        return quota_exceeded, None
+
     title = retrieval.title
     authors = retrieval.authors
     year = int(retrieval.coverDate.split('-')[0])
@@ -108,28 +173,28 @@ def get_from_scopus(
         pub_issns = retrieval.issn
     except KeyError:
         pub_issns = None
-        logger.error(f"An error occurred for {identifier=} while retrieving ISSNs.")
-    
+        logger.error(f'An error occurred for {identifier=} while retrieving ISSNs.')
+
     if title is None:
-        logger.warning(f"{identifier=} not containing title.")
+        logger.warning(f'{identifier=} not containing title.')
         return quota_exceeded, None
-    
+
     if authors is None:
         authors = ''
     else:
         authors = cast(list[PybliometricsAuthor], authors)
         authors = authors_to_str(authors)
-    
+
     if references is not None:
         # obtain references in standardised format
         references = cast(list[PybliometricsReference], references)
         obtained_refs = obtain_ref_info(references)
     else:
         obtained_refs = None
-    
+
     if pub_name is not None:
         pub_name = cast(SourceTitle, pub_name)
-    
+
     if pub_issns is not None:
         pub_issns = cast(PybliometricsISSN, pub_issns)
         pub_issn_print = pub_issns.print
@@ -137,7 +202,7 @@ def get_from_scopus(
     else:
         pub_issn_print = None
         pub_issn_electronic = None
-    
+
     paper_info = PaperInfo(
         iter_depth=iter_depth,
         title=title,
@@ -152,7 +217,7 @@ def get_from_scopus(
         pub_issn_print=pub_issn_print,
         pub_issn_electronic=pub_issn_electronic,
     )
-    
+
     return quota_exceeded, paper_info
 
 
@@ -166,27 +231,27 @@ def obtain_ref_info(
             doi = ref.doi
             obtained_ref = Reference(scopus_id=scopus_id, doi=doi)
             obtained_refs.add(obtained_ref)
-    
+
     if obtained_refs:
         return frozenset(obtained_refs)
     else:
         return None
 
 
-def get_refs_from_scopus(
+def get_scopus_refs(
     papers: frozenset[PaperInfo],
     iter_depth: int,
 ) -> Iterator[tuple[bool, PaperInfo, PaperInfo | None]]:
-    
-    for parent in tqdm(papers, position=0, leave=True):
-        if parent.refs is None:
-            continue
-        
-        for ref in tqdm(parent.refs, position=1, leave=False):
-            quota_exceeded, child = get_from_scopus(
-                identifier=ref.scopus_id,
-                id_type='scopus_id',
-                iter_depth=iter_depth,
-            )
-            
-            yield quota_exceeded, parent, child
+    with logging_redirect_tqdm():
+        for parent in tqdm(papers, position=0, leave=True):
+            if parent.refs is None:
+                continue
+
+            for ref in tqdm(parent.refs, position=1, leave=False):
+                quota_exceeded, child = get_scopus_abstract_retrieval(
+                    identifier=ref.scopus_id,
+                    id_type='scopus_id',
+                    iter_depth=iter_depth,
+                )
+
+                yield quota_exceeded, parent, child

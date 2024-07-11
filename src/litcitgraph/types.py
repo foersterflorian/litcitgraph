@@ -1,34 +1,54 @@
 from __future__ import annotations
-from typing import (
-    cast,
-    TypeAlias,
-    NamedTuple,
-    NewType,
-    TypedDict,
-    NotRequired,
-    Literal,
-    Any
-)
+
+import enum
 from collections.abc import Iterable
-from dataclasses import dataclass, asdict
+from dataclasses import asdict, dataclass
+from typing import Any, Literal, NamedTuple, NewType, NotRequired, TypeAlias, TypedDict, cast
+
+
+class LoggingLevels(enum.IntEnum):
+    DEBUG = 10
+    INFO = 20
+    WARNING = 30
+    ERROR = 40
+    CRITICAL = 50
 
 
 ScopusID = NewType('ScopusID', int)
-DOI = NewType('DOI', str)
-EID = NewType('EID', str)
-DocIdentifier: TypeAlias = ScopusID | DOI | EID
-PybliometricsIDTypes = Literal[
+DOI: TypeAlias = str
+EID: TypeAlias = str
+PubmedID: TypeAlias = int
+PublisherItemIdentifier: TypeAlias = str
+DocIdentifier: TypeAlias = ScopusID | DOI | EID | PubmedID | PublisherItemIdentifier
+PybliometricsIDTypes: TypeAlias = Literal[
+    'doi',
     'eid',
     'pii',
-    'scopus_id',
     'pubmed_id',
-    'doi',
+    'scopus_id',
 ]
-SourceTitle: TypeAlias = str # title of publication source (e.g. journal)
+ScopusAbstractRetrievalViews: TypeAlias = Literal[
+    'BASIC',
+    'META',
+    'META_ABS',
+    'REF',
+    'FULL',
+]
+ScopusSearchViews: TypeAlias = Literal[
+    'STANDARD',
+    'COMPLETE',
+]
+ScopusSearchIntegrityProperties: TypeAlias = Literal[
+    'doi',
+    'eid',
+    'pii',
+    'pubmed_id',
+]
+SourceTitle: TypeAlias = str  # title of publication source (e.g. journal)
 ISSN: TypeAlias = str
 RankingScore = NewType('RankingScore', float)
 NestedIterable: TypeAlias = Iterable['Any | NestedIterable']
-RankProperties = Literal[
+RankPropertiesSJR: TypeAlias = Literal[
     'SJR',
     'SJR Quartile',
     'H Index',
@@ -39,6 +59,7 @@ RankProperties = Literal[
     'Cites / Doc. (2years)',
     'Ref. / Doc.',
 ]
+FuzzyMatches: TypeAlias = list[tuple[SourceTitle, float]]
 
 
 class PybliometricsAuthor(NamedTuple):
@@ -47,6 +68,7 @@ class PybliometricsAuthor(NamedTuple):
     surname: str
     given_name: str
     affiliation: str
+
 
 class PybliometricsReference(NamedTuple):
     position: str | None
@@ -68,20 +90,23 @@ class PybliometricsReference(NamedTuple):
     text: str | None
     fulltext: str | None
 
+
 class PybliometricsISSN(NamedTuple):
     print: ISSN
     electronic: ISSN
+
 
 @dataclass(frozen=True, kw_only=True, slots=True)
 class Reference:
     scopus_id: ScopusID
     doi: str | None
-    
+
     def __key(self) -> ScopusID:
         return self.scopus_id
-    
+
     def __hash__(self) -> int:
         return hash(self.__key())
+
 
 class PaperProperties(TypedDict):
     iter_depth: int
@@ -96,6 +121,8 @@ class PaperProperties(TypedDict):
     pub_name: SourceTitle | Literal['']
     pub_issn_print: ISSN | Literal['']
     pub_issn_electronic: ISSN | Literal['']
+    rank_score: NotRequired[RankingScore | Literal[0]]
+
 
 @dataclass(frozen=True, kw_only=True, slots=True)
 class PaperInfo:
@@ -111,19 +138,19 @@ class PaperInfo:
     pub_name: SourceTitle | None
     pub_issn_print: ISSN | None
     pub_issn_electronic: ISSN | None
-    
+
     def __key(self) -> tuple[ScopusID, EID]:
         return (self.scopus_id, self.eid)
-    
+
     def __hash__(self) -> int:
         return hash(self.__key())
-    
+
     def graph_properties_as_dict(self) -> PaperProperties:
         prop_dict = cast(PaperProperties, asdict(self))
         _ = prop_dict.pop('refs', None)
-        
+
         for key, val in prop_dict.items():
             if val is None:
                 prop_dict[key] = ''
-        
+
         return prop_dict

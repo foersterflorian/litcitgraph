@@ -1,7 +1,8 @@
-from typing import Any
 from collections.abc import Iterable, Iterator
+from typing import Any
 
-from litcitgraph.types import NestedIterable, ISSN
+from litcitgraph.types import NestedIterable
+
 
 def flatten(
     x: NestedIterable,
@@ -11,11 +12,3 @@ def flatten(
             yield from flatten(entry)
         else:
             yield entry
-
-def extract_issn(
-    entry: str,
-) -> ISSN | list[ISSN]:
-    if ',' in entry:
-        return [x.strip() for x in entry.split(',')]
-    else:
-        return entry

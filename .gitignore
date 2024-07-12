@@ -15,6 +15,9 @@ output/
 # results are user- and data-specific
 results/
 
+# smaller quick tests
+test-notebooks/
+
 # temp files
 file_system_backend/
 

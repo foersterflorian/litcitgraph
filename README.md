@@ -48,29 +48,52 @@ saving_path = Path('./inter_save.pkl')
 > [!CAUTION]
 > The citation graph object is saved as `Pickle` file for convenience. Please be advised that pickled objects are not safe and can contain malicious code. Please only load pickled files which were created by your own. [See the official documentation for more information](https://docs.python.org/3.11//library/pickle.html).
 
-Now we can start the build process by providing the necessary data input. We also need to provide information how many iteration levels we want to gather and whether we want to use the `DOI` or not. It is recommended not to use `DOI` and opt for `EID` as identifier. `EID` often provides more robust search experience since `DOI` information is sometimes outdated or not available on Scopus.
+Now we can start the build process by providing the necessary data input. We also need to provide information how many iteration levels we want to gather and which identifier type we want to use. It is recommended not to use `DOI` and opt for `EID` as identifier if possible. `EID` often provides a more robust search experience since `DOI` information is sometimes not available on Scopus.
+
+The id type has to be supported by `Pybliometrics` and the Scopus API and depends on your input data. You can choose from:
+- `'doi'`
+- `'eid'`
+- `'pii'`
+- `'pubmed_id'`
+- `'scopus_id'`
 
 ```python
 id_data = read_scopus_ids_from_csv(path_to_data, use_doi=False, batch_size=None)
 cit_graph = CitationGraph(saving_path)
-cit_graph.build_from_ids(ids=id_data, use_doi=False, target_iter_depth=1)
+cit_graph.build_from_ids(ids=id_data, id_type='eid', target_iter_depth=1)
 ```
 
 You can decide to only process a given batch size of the exported data with the `batch_size` parameter of the `read_scopus_from_csv` function. If this parameter is `None` all entries are processed.
 
-Now the citation graph is initialised with the given entries of the exported data. After that the build process for the first iteration starts since the `target_iter_depth` was set to `1`. You can also directly set a larger iteration depth. Depending on the size of the initial dataset and the reference count in each document you might run into quota limits.
+Now the citation graph is initialised with the given entries of the exported data. After that, the build process for the first iteration starts since the `target_iter_depth` was set to `1`. You can also directly set a larger iteration depth. Depending on the size of the initial dataset and the reference count in each document you might run into quota limits. Also bear in mind that large datasets can lead to considerable build times which can not be accelerated because we are dealing with an API and can not easily spawn multiple instances to speed up the retrieval process.
 
 ### Query-based Search
 
-Based on `pybliometrics` it is also possible to retrieve search results by providing a query string equivalent to the standard Scopus web search. It is planned to leverage this feature to seamlessly interact with Scopus without the need of manual data exports and file parsing. This feature is not yet implemented.
+Based on `pybliometrics` it is also possible to retrieve search results by providing a query string equivalent to the standard Scopus web search. To use this feature the `requests` module of `litcitgraph` contains a convenience function `query_search_scopus` to leverage the query-based search functionality. It returns a tuple with EIDs for all found documents. This tuple can then be used to build the citation graph as described above. An integrity check is applied by default to ensure that all found documents contain the necessary EID property for further processing steps.
+Any query is valid which can be understood by Scopus' advanced search.
+
+```python
+from litcitgraph.requests import query_search_scopus
+from pathlib import Path
+
+query_search = 'ANY QUERY YOU LIKE TO EXPLORE'
+query_eids = query_search_scopus(query_search)
+
+# now we can continue as described above
+saving_path = Path('./inter_save.pkl')
+
+cit_graph = CitationGraph(saving_path)
+cit_graph.build_from_ids(ids=query_eids, id_type='eid', target_iter_depth=1)
+```
+
 
 ## Quota
 
-Depending of the API key and the underlying licensing model there are different quota limits for certain retrieval actions regarding the Scopus API. If the quota is exceeded and the build process not successfully finished it is automatically interrupted and a copy of the current graph is saved to the path with which the citation graph instance was initialised. The build process can be resumed if the quota limit was reset for the given API keys.
+Depending of the API key and the underlying licensing model there are different quota limits for certain retrieval actions regarding the Scopus API. If the quota is exceeded and the build process not yet successfully finished it is automatically interrupted and a copy of the current graph is saved to the path with which the citation graph instance was initialised. The build process can be resumed if the quota limit was reset for the given API keys.
 
 ## Resume Build Process after Error
 
-If an expectable error occurred during the build process you are able to load the previous state and continue this process where it stopped. Assuming we ran into quota limits while performing this tutorial and our quota was reset, we can resume as follows:
+If an error occurred during the build process you are able to load the previous state and continue this process where it stopped. Assuming we ran into quota limits while performing this tutorial and our quota was reset, we can resume as follows:
 
 ```python
 from pathlib import Path

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import re
+import warnings
 from pathlib import Path
 from typing import (
     Final,
@@ -12,7 +14,6 @@ from thefuzz import process
 from tqdm.auto import tqdm
 from tqdm.contrib.logging import logging_redirect_tqdm
 
-from litcitgraph.errors import TooManyFuzzyMatchesError
 from litcitgraph.graphs import CitationGraph
 from litcitgraph.loggers import ranks as logger
 from litcitgraph.ranking.common import flatten
@@ -31,9 +32,13 @@ SOURCE_TYPE: Final[str] = 'journal'
 TARGET_SCORE: Final[str] = 'SJR'
 SCORE_MULTIPLIER: Final[int] = 1000
 
-# logger = logging.getLogger('litcitgraph.ranking.ranks')
-# LOGGING_LEVEL: Final[LoggingLevels] = 'INFO'
-# logger.setLevel(LOGGING_LEVEL)
+
+def clean_text_entry(
+    text: str,
+) -> str:
+    pattern = r'^[\s.,;:_/\\\-]+|[\s.,;:]+$'
+    text = re.sub(pattern, '', text)
+    return text.lower()
 
 
 def read_SJR_ranking_data(
@@ -50,7 +55,8 @@ def read_SJR_ranking_data(
         df = df.loc[df['Type'] == source_type]
         df = df.dropna(subset=[target_score])
         # transform title all to lowercase
-        df['Title'] = df['Title'].apply(lambda x: x.lower())
+        # df['Title'] = df['Title'].apply(lambda x: x.lower())
+        df['Title'] = df['Title'].apply(clean_text_entry)
         # transform score to integer
         df[target_score] = df[target_score].apply(lambda x: x.replace(',', '.')).astype(float)
         df[target_score] = (df[target_score] * SCORE_MULTIPLIER).astype(int)
@@ -183,10 +189,25 @@ class SJRGraphScorer:
             return False, None
         elif len(target_journals) == 1:
             self.num_title_fuzzy_matches += 1
-            logger.info(f'Fuzzy match found for {journal_title=}: {target_journals[0]}')
+            logger.info('Fuzzy match found for %s: %s', journal_title, target_journals[0])
             return True, target_journals[0]
         else:
-            raise TooManyFuzzyMatchesError('More than one journal matched')
+            self.num_title_fuzzy_matches += 1
+            title_match = target_journals[0]
+            warnings.warn(
+                (
+                    f'More than one match found for title >>{journal_title}<<. '
+                    f'Results:\n{target_journals}\n'
+                    f'Return match with highest score: >>{title_match}<<'
+                )
+            )
+            return True, title_match
+            # raise TooManyFuzzyMatchesError(
+            #     (
+            #         f'More than one journal matched. Results for '
+            #         f'title {journal_title}:\n{target_journals}'
+            #     )
+            # )
 
     def match_rank(
         self,
@@ -198,7 +219,7 @@ class SJRGraphScorer:
 
         is_match: bool = False
         # ** ISSN lookup has priority
-        logger.debug(f'Matching {issn=} {journal_title=}')
+        logger.debug('Matching %s %s', issn, journal_title)
         if issn is not None:
             is_match = issn in self.relevant_issns
         if is_match:
@@ -210,7 +231,8 @@ class SJRGraphScorer:
             else:
                 raise RuntimeError(f'{issn=} found in relevant ISSNs, but no rank found.')
         # ** journal title
-        if journal_title is not None:
+        if journal_title is not None and journal_title != '':
+            journal_title = clean_text_entry(journal_title)
             is_match, journal_title = self.match_journal_title(journal_title)
         if is_match:
             self.num_matches += 1
@@ -235,7 +257,7 @@ class SJRGraphScorer:
             )
             if rank_score is not None:
                 # score was multiplied by SCORE_MULTIPLIER, reverse operation
-                logger.debug(f'Rank score for {issn=} found: {rank_score}')
+                logger.debug('Rank score for %s found: %d', issn, rank_score)
                 return RankingScore(rank_score / SCORE_MULTIPLIER)
             else:
                 return None
@@ -249,7 +271,7 @@ class SJRGraphScorer:
                 ),
             )
             # score was multiplied by SCORE_MULTIPLIER, reverse operation
-            logger.debug(f'Rank score for {journal_title=} found: {rank_score}')
+            logger.debug('Rank score for %s found: %d', journal_title, rank_score)
             return RankingScore(rank_score / SCORE_MULTIPLIER)
         else:
             raise ValueError('Either ISSN or journal title must be provided')
@@ -284,13 +306,26 @@ class SJRGraphScorer:
         self,
         graph: CitationGraph,
     ) -> CitationGraph:
+        """returns a copy of the citation graph with ranking scores applied
+
+        Parameters
+        ----------
+        graph : CitationGraph
+            citation graph to be ranked
+
+        Returns
+        -------
+        CitationGraph
+            copy of the citation graph with ranking scores applied
+        """
+        graph = graph.deepcopy()
         self.num_title_matches = 0
         self.num_issn_matches = 0
         self.num_title_matches = 0
         self.num_title_fuzzy_matches = 0
 
         with logging_redirect_tqdm():
-            for node in tqdm(graph.nodes):
+            for node in tqdm(graph.nodes, mininterval=1.0, miniters=5):
                 node_props = cast(PaperProperties, graph.nodes[node])
                 issn_print = node_props['pub_issn_print']
                 issn_electronic = node_props['pub_issn_electronic']
@@ -304,18 +339,19 @@ class SJRGraphScorer:
                     node_props['rank_score'] = rank_score
                 else:
                     node_props['rank_score'] = 0
-                    logger.info(
-                        (
-                            f'No rank found for {node=}, {issn_print=}, '
-                            f'{issn_electronic=}, {journal_title=}'
-                        )
+                    logger.debug(
+                        'No rank found for %s, %s, %s, %s',
+                        node,
+                        issn_print,
+                        issn_electronic,
+                        journal_title,
                     )
 
         num_papers = len(graph.nodes)
         self.scoring_rate = self.num_matches / num_papers
 
         logger.info('Scoring completed.')
-        logger.info(f'Number of matches: {self.num_matches}')
-        logger.info(f'Scoring rate: {self.scoring_rate:.2%}')
+        logger.info('Number of matches: %d', self.num_matches)
+        logger.info('Scoring rate: %.2f', self.scoring_rate)
 
         return graph

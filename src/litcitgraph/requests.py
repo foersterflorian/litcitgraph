@@ -95,9 +95,7 @@ def retry_scopus(
                 try:
                     return func(*args, **kwargs)
                 except Scopus404Error:
-                    logger.debug(
-                        (f'Document not found. Attempt {attempt} of ' f'{num_retries}.')
-                    )
+                    logger.debug('Document not found. Attempt %d of %d', attempt, num_retries)
             return False, None
 
         return wrapper_func
@@ -173,10 +171,10 @@ def get_scopus_abstract_retrieval(
         pub_issns = retrieval.issn
     except KeyError:
         pub_issns = None
-        logger.error(f'An error occurred for {identifier=} while retrieving ISSNs.')
+        logger.error('An error occurred for %s while retrieving ISSNs.', identifier)
 
     if title is None:
-        logger.warning(f'{identifier=} not containing title.')
+        logger.warning('%s not containing title.', identifier)
         return quota_exceeded, None
 
     if authors is None:

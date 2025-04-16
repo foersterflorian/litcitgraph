@@ -21,7 +21,7 @@ logging.basicConfig(
     datefmt=LOG_DATE_FMT,
 )
 
-USE_CONFIG: Final[bool] = True
+USE_CONFIG: Final[bool] = False
 
 if USE_CONFIG:
     package_directory = Path(__file__).parent
